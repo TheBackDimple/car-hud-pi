@@ -1,17 +1,17 @@
 [Unit]
-Description=HUD Renderer Service
-After=network.target
-Wants=graphical.target
+Description=Car HUD System
+After=graphical.target network.target
+Wants=network.target
 
 [Service]
+Type=simple
 User=pi
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/pi/.Xauthority
-Environment=SDL_VIDEODRIVER=x11
 ExecStartPre=/bin/sleep 5
-ExecStart=/home/pi/hud/start_hud.sh
+ExecStart=/home/pi/car-hud-pi/scripts/start.sh
 Restart=always
-RestartSec=2
+RestartSec=5
 
 [Install]
 WantedBy=graphical.target

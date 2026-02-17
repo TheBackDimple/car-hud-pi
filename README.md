@@ -1,33 +1,80 @@
-# Car HUD Raspberry Pi (Renderer + API)
+# Car HUD — Raspberry Pi
 
-This repo contains the Raspberry Pi side of a car windshield HUD system:
-- Fullscreen HUD renderer (pygame)
-- HTTP API server (Flask) for live updates
-- systemd service to auto-start on boot
-- USB tether networking notes (Android -> Pi via usb0)
+Raspberry Pi side of a car windshield HUD system. A Pi 4 runs a local React-based HUD displayed on a reflective windshield screen via Chromium kiosk mode. An Android phone connects over USB tethering and acts as the controller and data source — sending vehicle data (OBD-II + GPS), Google Maps imagery, and UI configuration to the Pi in real time over WebSockets.
 
-## Runtime behavior
-- The Pi runs `hud.py` which:
-  - Starts a Flask server on port 5000
-  - Renders a fullscreen HUD via pygame
-  - Updates HUD fields when phone sends JSON
+## Architecture
 
-## API
-Base URL (USB tether static IP):
-- `http://192.168.254.2:5000`
+| Component      | Tech                         | Role                          |
+|----------------|------------------------------|-------------------------------|
+| Pi Backend     | FastAPI (Python)             | WebSocket server, serves React build |
+| Pi Frontend    | React + Vite + TypeScript    | HUD rendering in Chromium     |
+| Pi Display     | Chromium kiosk mode         | Fullscreen browser, CSS-mirrored |
+| Android App    | Kotlin + Jetpack Compose     | Controller, data source       |
+| Communication  | WebSocket over USB tether    | Real-time bidirectional messaging |
 
-Endpoints:
-- GET `/state` -> returns current HUD state JSON
-- POST `/update` -> update any subset of fields
+Data flow is one-directional for most things: the Android phone pushes data **to** the Pi. The Pi receives and renders.
 
-POST JSON fields (all strings):
-- speed
-- mpg
-- range
-- turn
-- distance
+## Project Structure
 
-Example:
-```json
-{ "speed": "65", "turn": "Turn Right", "distance": "1.5 miles" }
+```
+car-hud-pi/
+├── backend/           # FastAPI + WebSocket server
+│   ├── main.py
+│   ├── ws/             # WebSocket manager & handlers
+│   ├── models/         # Pydantic models
+│   ├── state/          # In-memory state store
+│   └── requirements.txt
+├── frontend/           # React + Vite HUD UI
+│   ├── src/
+│   │   ├── hooks/      # useWebSocket, useHudStore
+│   │   ├── components/ # HUD widgets
+│   │   ├── layouts/    # Dynamic grid
+│   │   ├── styles/     # HUD theme, mirror CSS
+│   │   └── types/
+│   └── public/
+├── systemd/            # hud.service unit
+├── networking/         # USB tether config (dhcpcd-usb0.conf)
+├── scripts/
+│   ├── setup.sh        # Full Pi setup
+│   ├── start.sh        # Start backend + Chromium
+│   └── build-frontend.sh
+├── archive/legacy/     # Old pygame + Flask app (archived)
+└── IMPLEMENTATION_PLAN.md
+```
 
+## Quick Start (Development)
+
+**Backend** (from project root):
+```bash
+pip install -r backend/requirements.txt
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+**Production build:**
+```bash
+./scripts/build-frontend.sh
+./scripts/start.sh
+```
+
+## USB Tether Networking
+
+- Pi IP: `192.168.254.2`
+- Phone IP: `192.168.254.1`
+- WebSocket: `ws://192.168.254.2:8000/ws`
+
+See `networking/dhcpcd-usb0.conf` for dhcpcd configuration.
+
+## Chromium Kiosk & Reflective Display (Phase 3)
+
+The HUD uses a horizontal mirror transform (`scaleX(-1)`) so text reads correctly when reflected off the windshield. `scripts/start.sh` launches Chromium in kiosk mode at 1280×720 and disables screen blanking. Verify mirrored text with a mirror or phone camera.
+
+## Implementation Status
+
+See `IMPLEMENTATION_PLAN.md` for the full phased implementation plan. Phases 0–3 (project structure, FastAPI/WebSocket, React frontend, Chromium kiosk & mirror) are complete.

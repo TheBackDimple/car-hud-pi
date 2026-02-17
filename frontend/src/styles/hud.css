@@ -1,0 +1,92 @@
+/* HUD theme — green-on-black, high contrast for reflective display */
+/* Black background = transparent on HUD film */
+
+.hud-root {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  overflow: hidden;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.hud-text {
+  color: #00ff78;
+  text-shadow: 0 0 8px #00ff78, 0 0 16px #00ff7840;
+}
+
+.hud-text-dim {
+  color: #00cc60;
+  text-shadow: 0 0 4px #00cc6040;
+}
+
+.hud-widget {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0.5vh 0.5vw;
+}
+
+.hud-widget.speed-gauge .hud-value {
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.hud-widget.speed-gauge .hud-label {
+  font-size: clamp(0.75rem, 2vw, 1rem);
+  margin-top: 0.25vh;
+}
+
+.hud-widget .hud-value {
+  font-size: clamp(1rem, 2.5vw, 1.5rem);
+  font-weight: 600;
+}
+
+.hud-widget .hud-label {
+  font-size: clamp(0.6rem, 1.5vw, 0.85rem);
+  color: #00cc60;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.map-tile {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 1px solid #00ff7840;
+}
+
+.map-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #00cc60;
+  font-size: clamp(0.9rem, 2vw, 1.2rem);
+  border: 1px dashed #00ff7840;
+}
+
+.awaiting-config {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #00cc60;
+  font-size: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+.connection-status {
+  position: fixed;
+  top: 0.5vh;
+  right: 0.5vw;
+  font-size: 0.75rem;
+  color: #00ff78;
+  z-index: 100;
+}
+
+.connection-status.disconnected {
+  color: #ff6666;
+  text-shadow: 0 0 4px #ff6666;
+}
