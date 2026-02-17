@@ -1,0 +1,17 @@
+[Unit]
+Description=HUD Renderer Service
+After=network.target
+Wants=graphical.target
+
+[Service]
+User=pi
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+Environment=SDL_VIDEODRIVER=x11
+ExecStartPre=/bin/sleep 5
+ExecStart=/home/pi/hud/start_hud.sh
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target
