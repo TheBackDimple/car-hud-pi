@@ -16,3 +16,24 @@ class HudDataPayload(BaseModel):
     turn: str = ""
     distance: str = ""
     timestamp: int | None = Field(default=None, description="Unix timestamp ms")
+
+
+class ObdDataPayload(BaseModel):
+    """Payload for obd_data message (from Pi OBD reader)."""
+
+    speed: str = ""
+    rpm: str = ""
+    coolantTemp: str = ""
+    mpg: str = ""
+    range: str = ""
+    fuelLevel: str = ""
+    timestamp: int | None = Field(default=None, description="Unix timestamp ms")
+
+
+class GpsDataPayload(BaseModel):
+    """Payload for gps_data message (from Android)."""
+
+    gpsSpeed: str = ""
+    turn: str = ""
+    distance: str = ""
+    timestamp: int | None = Field(default=None, description="Unix timestamp ms")

@@ -1,5 +1,9 @@
 package com.example.carhud.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -24,20 +29,46 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.example.carhud.service.ConnectionState
 import com.example.carhud.service.HudConnectionHolder
 import com.example.carhud.service.HudConnectionService
+import com.example.carhud.service.ActivePresetHolder
+import com.example.carhud.service.TripStateHolder
+import com.example.carhud.ui.theme.CarHudTheme
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToPresets: () -> Unit,
+    onNavigateToFeatureToggles: () -> Unit,
     onNavigateToMap: () -> Unit,
     onNavigateToObd: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
     val connectionState by HudConnectionHolder.state.collectAsState()
+    val activePresetName by ActivePresetHolder.name.collectAsState()
     val context = LocalContext.current
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        if (results.values.any { it }) {
+            HudConnectionService.startConnect(context)
+        }
+    }
+
+    fun onConnectClick() {
+        when {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ->
+                HudConnectionService.startConnect(context)
+            else -> permissionLauncher.launch(
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            )
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -63,8 +94,23 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            Button(
+                onClick = {
+                    if (connectionState is ConnectionState.Disconnected ||
+                        connectionState is ConnectionState.Error
+                    ) {
+                        onConnectClick()
+                    }
+                    TripStateHolder.startTrip()
+                    onNavigateToMap()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Start Trip")
+            }
+
             Text(
-                "Active preset: Default",
+                "Active preset: $activePresetName",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -76,7 +122,7 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
-                    onClick = { HudConnectionService.startConnect(context) },
+                    onClick = { onConnectClick() },
                     modifier = Modifier.weight(1f),
                     enabled = connectionState is ConnectionState.Disconnected ||
                         connectionState is ConnectionState.Error
@@ -98,6 +144,7 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 NavButton("Presets", onNavigateToPresets)
+                NavButton("Toggles", onNavigateToFeatureToggles)
                 NavButton("Map", onNavigateToMap)
                 NavButton("OBD-II", onNavigateToObd)
             }
@@ -142,5 +189,19 @@ private fun ConnectionStatusCard(state: ConnectionState) {
 private fun NavButton(label: String, onClick: () -> Unit) {
     Button(onClick = onClick) {
         Text(label)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun HomeScreenPreview() {
+    CarHudTheme {
+        HomeScreen(
+            onNavigateToPresets = {},
+            onNavigateToFeatureToggles = {},
+            onNavigateToMap = {},
+            onNavigateToObd = {},
+            onNavigateToSettings = {}
+        )
     }
 }

@@ -45,7 +45,8 @@ async def websocket_endpoint(websocket: WebSocket, role: str = "hud"):
     - ?role=android — Android phone (data source)
     - ?role=hud — HUD frontend (Chromium display)
     """
-    conn_role = ConnectionRole(role) if role in ("android", "hud") else ConnectionRole.HUD
+    role_map = {"android": ConnectionRole.ANDROID, "hud": ConnectionRole.HUD, "obd": ConnectionRole.OBD}
+    conn_role = role_map.get(role, ConnectionRole.HUD)
     await manager.connect(websocket, conn_role)
 
     try:

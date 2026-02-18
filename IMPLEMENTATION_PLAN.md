@@ -1,6 +1,6 @@
 # Car HUD — Full Implementation Plan
 
-> **Goal:** A Raspberry Pi 4 runs a local React-based HUD displayed on a reflective windshield screen via Chromium kiosk mode. An Android phone connects over USB tethering and acts as the sole controller and data source — sending vehicle data (OBD-II + GPS), Google Maps imagery, and UI configuration to the Pi in real time over WebSockets.
+> **Goal:** A Raspberry Pi 4 runs a local React-based HUD displayed on a reflective windshield screen via Chromium kiosk mode. An Android phone connects over USB tethering and acts as the controller — sending GPS data, Google Maps imagery, and UI configuration to the Pi in real time over WebSockets. **OBD-II data is read directly on the Pi** via a Bluetooth OBD-II adapter paired with the Pi (not the phone).
 
 ---
 
@@ -32,19 +32,25 @@
 │                       │   192.168.254.1     │       192.168.254.2          │
 │  ┌─────────────────┐  │     WebSocket       │  ┌───────────────────────┐  │
 │  │  Kotlin App      │  │◄─────────────────►│  │  FastAPI (port 8000)   │  │
-│  │  - OBD-II BT     │  │                    │  │  - WebSocket endpoint  │  │
-│  │  - GPS provider   │  │                    │  │  - Static file serve   │  │
-│  │  - Maps snapshot  │  │                    │  └───────────┬───────────┘  │
-│  │  - Preset editor  │  │                    │              │              │
-│  │  - Feature toggle │  │                    │  ┌───────────▼───────────┐  │
-│  └─────────────────┘  │                    │  │  React Frontend        │  │
-│                       │                    │  │  (Chromium Kiosk)      │  │
-│  ┌─────────────────┐  │                    │  │  - HUD renderer        │  │
-│  │  Google Maps SDK │  │                    │  │  - Dynamic layout      │  │
-│  │  (snapshot mode) │  │                    │  │  - CSS mirrored        │  │
-│  └─────────────────┘  │                    │  │  - 1280x720            │  │
-│                       │                    │  └───────────────────────┘  │
-└──────────────────────┘                    └─────────────────────────────┘
+│  │  - GPS provider   │  │                    │  │  - WebSocket endpoint  │  │
+│  │  - Maps snapshot  │  │                    │  │  - Static file serve   │  │
+│  │  - Preset editor  │  │                    │  └───────────┬───────────┘  │
+│  │  - Feature toggle │  │                    │              │              │
+│  └─────────────────┘  │                    │  ┌───────────▼───────────┐  │
+│                       │                    │  │  React Frontend        │  │
+│  ┌─────────────────┐  │                    │  │  (Chromium Kiosk)      │  │
+│  │  Google Maps SDK │  │                    │  │  - HUD renderer        │  │
+│  │  (snapshot mode) │  │                    │  │  - Dynamic layout      │  │
+│  └─────────────────┘  │                    │  │  - CSS mirrored        │  │
+└──────────────────────┘                    │  │  - 1280x720            │  │
+                                            │  └───────────────────────┘  │
+                                            │  ┌───────────────────────┐  │
+                                            │  │  OBD Reader (Python)   │  │
+                                            │  │  - python-obd library  │  │
+                                            │  │  - Bluetooth OBD-II    │◄─┼── BT
+                                            │  │  - Pushes to backend   │  │   ELM327
+                                            │  └───────────────────────┘  │
+                                            └─────────────────────────────┘
                                                         │
                                                         ▼
                                               ┌───────────────────┐
@@ -61,7 +67,7 @@
 | Pi Frontend | React + Vite + TypeScript | HUD rendering in Chromium |
 | Pi Display | Chromium kiosk mode | Fullscreen browser, CSS-mirrored |
 | Android App | Kotlin + Jetpack Compose | Controller, data source, preset editor |
-| Vehicle Data | OBD-II (Bluetooth) + Phone GPS | Speed, RPM, fuel, temps, GPS speed |
+| Vehicle Data | OBD-II (Pi Bluetooth) + Phone GPS | Speed, RPM, fuel, temps from Pi; GPS speed from phone |
 | Maps | Google Maps SDK on Android | Snapshot capture → stream to Pi |
 | Communication | WebSocket over USB tether | Real-time bidirectional messaging |
 
@@ -478,17 +484,31 @@ App
 
 ## 7. Phase 5 — OBD-II & GPS Data Pipeline
 
-**Goal:** Android app reads vehicle data from a Bluetooth OBD-II adapter and phone GPS, then streams it to the Pi.
+**Goal:** OBD-II data is read on the **Raspberry Pi** via a Bluetooth OBD-II adapter paired with the Pi. GPS data comes from the **Android phone**. The Pi backend merges both and broadcasts to the HUD.
 
-### 7.1 Bluetooth OBD-II
+> **Architecture note:** The OBD-II adapter connects to the **Pi via Bluetooth**, not the phone. This keeps OBD polling on the Pi and avoids Bluetooth conflicts with the phone. The phone provides GPS (and map/nav data) over USB tether.
+
+### 7.1 OBD-II on Raspberry Pi (Python)
 
 **How it works:**
-1. User pairs their ELM327-compatible OBD-II Bluetooth adapter in Android settings
-2. App connects to the adapter via Bluetooth RFCOMM
-3. App sends OBD PID requests and parses responses
-4. Parsed data is packaged and sent over WebSocket
+1. User pairs their ELM327-compatible OBD-II Bluetooth adapter with the **Pi** (via `bluetoothctl` or desktop Bluetooth settings)
+2. Pi binds the adapter to a serial port: `sudo rfcomm bind 0 <MAC_ADDRESS>`
+3. A Python script (`obd_reader.py`) uses the [python-OBD](https://python-obd.readthedocs.io/) library to read from `/dev/rfcomm0`
+4. OBD reader connects to the FastAPI backend via WebSocket and sends `obd_data` messages
+5. Backend merges OBD data with GPS data from the phone and broadcasts `hud_data` to the HUD
 
-**Recommended library:** Use raw Bluetooth RFCOMM with ELM327 AT commands, or a library like [OBD-II Java API](https://github.com/pires/obd-java-api) adapted for Kotlin.
+**Python library:** `pip install obd` — [python-OBD](https://python-obd.readthedocs.io/) supports ELM327 adapters over serial (including Bluetooth RFCOMM).
+
+**Bluetooth setup on Pi:**
+```bash
+# Pair and trust the OBD adapter (PIN usually 1234)
+bluetoothctl
+# scan on → pair <MAC> → trust <MAC> → exit
+
+# Bind to serial port (persists until reboot; add to startup if needed)
+sudo rfcomm bind 0 AA:BB:CC:11:22:33
+# Port appears as /dev/rfcomm0
+```
 
 **Key OBD PIDs to support:**
 
@@ -503,29 +523,48 @@ App
 
 **Update frequency:** Poll OBD every **500ms** (2 Hz). OBD-II Bluetooth adapters are slow (~100ms per PID), so batch requests carefully.
 
-### 7.2 Phone GPS
+### 7.2 Phone GPS (Android)
 
 Use Android's `FusedLocationProviderClient`:
 - [ ] Request location updates every **1 second**
 - [ ] Extract: latitude, longitude, speed, bearing
 - [ ] GPS speed serves as a secondary/backup speed reading
 - [ ] Bearing can be used for compass heading on HUD (optional)
+- [ ] Android sends `gps_data` (or `hud_data` with GPS/nav fields only) over WebSocket
 
-### 7.3 Data Packaging
+### 7.3 Data Flow & Merging
 
-The Android app combines OBD + GPS data into a single message sent every **500ms**:
+| Source | Data | Message Type |
+|--------|------|---------------|
+| Pi (OBD reader) | speed, rpm, coolantTemp, mpg, range, fuelLevel | `obd_data` |
+| Android (phone) | gpsSpeed, turn, distance | `gps_data` or `hud_data` |
 
+The **backend merges** OBD + GPS into a single `hud_data` payload before broadcasting to the HUD frontend. If OBD is disconnected, OBD fields show "No OBD"; if GPS is unavailable, gpsSpeed shows "--".
+
+### 7.4 Message Schemas
+
+**obd_data** (from Pi OBD reader):
 ```json
 {
-  "type": "hud_data",
+  "type": "obd_data",
   "payload": {
     "speed": "65",
-    "gpsSpeed": "64",
     "rpm": "2400",
     "coolantTemp": "195",
     "mpg": "28.5",
     "range": "320",
     "fuelLevel": "72",
+    "timestamp": 1708123456789
+  }
+}
+```
+
+**gps_data** (from Android):
+```json
+{
+  "type": "gps_data",
+  "payload": {
+    "gpsSpeed": "64",
     "turn": "Turn Right",
     "distance": "0.5 mi",
     "timestamp": 1708123456789
@@ -533,15 +572,17 @@ The Android app combines OBD + GPS data into a single message sent every **500ms
 }
 ```
 
-### 7.4 Steps
+### 7.5 Steps
 
-- [ ] Implement Bluetooth OBD-II scanner/connector in Android app
-- [ ] Implement ELM327 command protocol (AT commands + PID queries)
-- [ ] Implement GPS location provider
-- [ ] Create data packaging layer that merges OBD + GPS
-- [ ] Send combined `hud_data` messages over WebSocket at 2 Hz
+- [ ] Create `obd_reader.py` script using python-OBD (connects to `/dev/rfcomm0`, sends `obd_data` via WebSocket)
+- [ ] Add `obd` connection role to backend; handle `obd_data` messages
+- [ ] Backend merges `obd_data` + `gps_data`/`hud_data` from Android into full `hud_data`
+- [ ] Implement GPS location provider in Android app
+- [ ] Android sends `gps_data` (or `hud_data` with GPS/nav fields) over WebSocket at 2 Hz
+- [ ] Update `start.sh` to launch OBD reader alongside backend (or run as systemd service)
 - [ ] Handle OBD disconnection gracefully (show "No OBD" on HUD)
 - [ ] Handle GPS unavailability (indoor/tunnel)
+- [ ] Update Android OBD Settings screen: document Pi pairing instead of phone pairing
 
 ---
 
@@ -638,13 +679,13 @@ Separately from the map image, send **turn-by-turn text** as part of `hud_data`:
 
 ### 8.7 Steps
 
-- [ ] Add Google Maps SDK to Android app (requires API key in `AndroidManifest.xml`)
-- [ ] Implement `MapView` in a Compose-compatible way (use `AndroidView` wrapper)
-- [ ] Implement snapshot capture loop
-- [ ] Implement JPEG compression + base64 encoding
-- [ ] Send `map_frame` messages over WebSocket
-- [ ] Build `MapTile` React component to display frames
-- [ ] Add quality/FPS setting in Android app settings
+- [x] Add Google Maps SDK to Android app (Maps Compose; API key in `gradle.properties`)
+- [x] Implement `GoogleMap` in Compose with `MapEffect` for snapshot access
+- [x] Implement snapshot capture loop (`MapStreamManager`)
+- [x] Implement JPEG compression + base64 encoding
+- [x] Send `map_frame` messages over WebSocket
+- [x] Build `MapTile` React component to display frames (already in Phase 2)
+- [x] Add quality/FPS setting in Android app settings
 - [ ] Test latency and adjust quality/framerate
 - [ ] Implement navigation data extraction (Directions API or Notification listener)
 
@@ -766,13 +807,13 @@ const DynamicGrid = () => {
 
 ### 9.6 Steps
 
-- [ ] Define `LayoutPreset` and `HudComponent` data classes (Android + TypeScript types)
-- [ ] Build Preset Editor screen in Compose with drag-and-drop
-- [ ] Implement preset save/load with DataStore
-- [ ] Send `layout_config` message on "Apply"
-- [ ] Build `DynamicGrid.tsx` that renders components based on preset
-- [ ] Build `WidgetRenderer` that maps component type to React component
-- [ ] Handle "no preset received yet" state on frontend
+- [x] Define `LayoutPreset` and `HudComponent` data classes (Android + TypeScript types)
+- [x] Build Preset Editor screen in Compose with drag-and-drop
+- [x] Implement preset save/load with DataStore
+- [x] Send `layout_config` message on "Apply"
+- [x] Build `DynamicGrid.tsx` that renders components based on preset (Phase 2)
+- [x] Build `WidgetRenderer` that maps component type to React component (Phase 2)
+- [x] Handle "no preset received yet" state on frontend
 - [ ] Test with all 3 presets
 
 ---
@@ -808,10 +849,10 @@ This is already built into the preset system (the `enabled` boolean on each `Hud
 
 ### 10.3 Steps
 
-- [ ] Add toggle switches in the Preset Editor screen (or a sub-screen)
-- [ ] Wire toggles to the `enabled` field in the preset model
-- [ ] Send updated `layout_config` on change
-- [ ] Frontend already handles this via `filter(c => c.enabled)` in `DynamicGrid`
+- [x] Add toggle switches in the Preset Editor screen (or a sub-screen)
+- [x] Wire toggles to the `enabled` field in the preset model
+- [x] Send updated `layout_config` on change
+- [x] Frontend already handles this via `filter(c => c.enabled)` in `DynamicGrid`
 
 ---
 
@@ -861,8 +902,8 @@ Power On
 
 ### 11.3 Steps
 
-- [ ] Update `hud.service` systemd unit
-- [ ] Create `scripts/setup.sh` for first-time Pi setup:
+- [x] Update `hud.service` systemd unit
+- [x] Create `scripts/setup.sh` for first-time Pi setup:
   - Install Python deps
   - Build React frontend (`npm run build`)
   - Install Chromium if not present
@@ -928,9 +969,11 @@ All messages follow this envelope:
 
 | Type | Direction | Description |
 |------|-----------|-------------|
-| `hud_data` | Android → Pi | Vehicle data (OBD + GPS + nav) |
+| `obd_data` | OBD Reader → Pi | OBD-II data (speed, rpm, temps, fuel) |
+| `gps_data` / `hud_data` | Android → Pi | GPS + nav (gpsSpeed, turn, distance) |
 | `map_frame` | Android → Pi | Base64 JPEG map snapshot |
 | `layout_config` | Android → Pi | Active preset / layout definition |
+| `hud_data` | Server → HUD | Merged OBD + GPS (broadcast to frontend) |
 | `connection_status` | Pi → Android | Acknowledgement / heartbeat |
 | `request_state` | Pi Frontend → Server | Frontend requests last known state |
 | `full_state` | Server → Pi Frontend | Server sends full state snapshot |
@@ -1010,7 +1053,7 @@ All messages follow this envelope:
 | HDMI display or HUD projector | 1280x720 output |
 | HUD reflective film/screen | Windshield mount |
 | USB-A to USB-C/Micro cable | Pi ↔ Phone tether |
-| ELM327 Bluetooth OBD-II adapter | Vehicle data |
+| ELM327 Bluetooth OBD-II adapter | Vehicle data (paired with **Pi**, not phone) |
 | Android phone | Controller + data source |
 | Power supply (car 12V → 5V 3A) | Pi power in car |
 
@@ -1024,6 +1067,7 @@ All messages follow this envelope:
 | Chromium | Latest | Kiosk display |
 | FastAPI | 0.110+ | WebSocket API server |
 | Uvicorn | 0.29+ | ASGI server |
+| python-OBD | Latest | OBD-II reader (Bluetooth ELM327) |
 
 ### Software — Android
 

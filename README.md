@@ -75,6 +75,17 @@ See `networking/dhcpcd-usb0.conf` for dhcpcd configuration.
 
 The HUD uses a horizontal mirror transform (`scaleX(-1)`) so text reads correctly when reflected off the windshield. `scripts/start.sh` launches Chromium in kiosk mode at 1280×720 and disables screen blanking. Verify mirrored text with a mirror or phone camera.
 
+## Pi Boot Integration (Phase 9)
+
+To start the HUD automatically on boot:
+
+```bash
+./scripts/setup.sh   # Run once (as pi or with sudo)
+sudo reboot          # Or: sudo systemctl start hud.service
+```
+
+The setup script installs Python deps, builds the frontend, configures USB tether (`dhcpcd`), disables screen blanking, and enables `hud.service`. Edit `/etc/systemd/system/hud.service` if your project path differs from `/home/pi/car-hud-pi`.
+
 ## Implementation Status
 
-See `IMPLEMENTATION_PLAN.md` for the full phased implementation plan. Phases 0–3 (project structure, FastAPI/WebSocket, React frontend, Chromium kiosk & mirror) are complete.
+See `IMPLEMENTATION_PLAN.md` for the full phased implementation plan. Phases 0–9 (through boot integration) are implemented.

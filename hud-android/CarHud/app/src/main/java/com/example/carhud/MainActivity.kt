@@ -14,6 +14,7 @@ import com.example.carhud.navigation.NavRoutes
 import com.example.carhud.ui.screens.HomeScreen
 import com.example.carhud.ui.screens.MapScreen
 import com.example.carhud.ui.screens.ObdSettingsScreen
+import com.example.carhud.ui.screens.FeatureToggleScreen
 import com.example.carhud.ui.screens.PresetEditorScreen
 import com.example.carhud.ui.screens.SettingsScreen
 import com.example.carhud.ui.theme.CarHudTheme
@@ -36,6 +37,9 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToPresets = {
                                     navController.navigate(NavRoutes.PRESETS)
                                 },
+                                onNavigateToFeatureToggles = {
+                                    navController.navigate(NavRoutes.FEATURE_TOGGLES)
+                                },
                                 onNavigateToMap = {
                                     navController.navigate(NavRoutes.MAP)
                                 },
@@ -49,6 +53,9 @@ class MainActivity : ComponentActivity() {
                         }
                         composable(NavRoutes.PRESETS) {
                             PresetEditorScreen(onNavigateBack = { navController.popBackStack() })
+                        }
+                        composable(NavRoutes.FEATURE_TOGGLES) {
+                            FeatureToggleScreen(onNavigateBack = { navController.popBackStack() })
                         }
                         composable(NavRoutes.MAP) {
                             MapScreen(onNavigateBack = { navController.popBackStack() })

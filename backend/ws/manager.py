@@ -23,6 +23,7 @@ class ConnectionRole(str, Enum):
 
     ANDROID = "android"
     HUD = "hud"
+    OBD = "obd"
 
 
 class ConnectionManager:
@@ -31,11 +32,16 @@ class ConnectionManager:
     def __init__(self) -> None:
         self._android: WebSocket | None = None
         self._hud: WebSocket | None = None
+        self._obd: WebSocket | None = None
         self._heartbeat_task: asyncio.Task[None] | None = None
 
     def is_android(self, websocket: WebSocket) -> bool:
         """True if this websocket is the Android client."""
         return self._android is websocket
+
+    def is_obd(self, websocket: WebSocket) -> bool:
+        """True if this websocket is the OBD reader (Pi-side)."""
+        return self._obd is websocket
 
     async def connect(
         self, websocket: WebSocket, role: ConnectionRole
@@ -48,6 +54,12 @@ class ConnectionManager:
                 logger.info("Replaced existing Android connection")
             self._android = websocket
             logger.info("Android client connected")
+        elif role == ConnectionRole.OBD:
+            if self._obd:
+                await self._obd.close()
+                logger.info("Replaced existing OBD reader connection")
+            self._obd = websocket
+            logger.info("OBD reader connected")
         else:
             if self._hud:
                 await self._hud.close()
@@ -62,6 +74,9 @@ class ConnectionManager:
         if self._android == websocket:
             self._android = None
             logger.info("Android client disconnected")
+        if self._obd == websocket:
+            self._obd = None
+            logger.info("OBD reader disconnected")
         if self._hud == websocket:
             self._hud = None
             self._stop_heartbeat()

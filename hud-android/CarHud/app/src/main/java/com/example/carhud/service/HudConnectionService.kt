@@ -7,9 +7,11 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.example.carhud.MainActivity
 import com.example.carhud.model.HudMessage
 import kotlinx.coroutines.CoroutineScope
@@ -25,11 +27,12 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Foreground service that maintains WebSocket connection to the Pi.
- * Keeps connection alive when app is backgrounded.
+ * Sends gps_data when connected (OBD data is read on the Pi).
  */
 class HudConnectionService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var locationProvider: LocationDataProvider? = null
 
     private fun updateState(newState: ConnectionState) {
         HudConnectionHolder.updateState(newState)
@@ -79,6 +82,7 @@ class HudConnectionService : Service() {
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
                 updateState(ConnectionState.Connected)
+                startGpsStreaming()
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -91,10 +95,12 @@ class HudConnectionService : Service() {
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                stopGpsStreaming()
                 updateState(ConnectionState.Disconnected)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                stopGpsStreaming()
                 updateState(ConnectionState.Disconnected)
                 this@HudConnectionService.webSocket = null
             }
@@ -120,7 +126,26 @@ class HudConnectionService : Service() {
         }
     }
 
+    private fun startGpsStreaming() {
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        locationProvider?.stopUpdates()
+        locationProvider = LocationDataProvider(this) { payload ->
+            HudConnectionHolder.send(payload.toMessage())
+        }
+        locationProvider?.startUpdates(serviceScope)
+    }
+
+    private fun stopGpsStreaming() {
+        locationProvider?.stopUpdates()
+        locationProvider = null
+    }
+
     private fun disconnect() {
+        stopGpsStreaming()
         reconnectJob?.cancel()
         reconnectJob = null
         webSocket?.close(1000, "Client disconnect")
