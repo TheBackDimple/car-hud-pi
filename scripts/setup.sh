@@ -39,7 +39,7 @@ if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/nul
     sudo apt-get install -y chromium-browser 2>/dev/null || sudo apt-get install -y chromium
 fi
 
-# Configure dhcpcd for USB tethering (usb0 → 192.168.254.2)
+# Configure dhcpcd for USB tethering (usb0 → 192.168.42.2, Android gateway 192.168.42.129)
 DHCPCD_INCLUDE="include $PROJECT_DIR/networking/dhcpcd-usb0.conf"
 if ! grep -qF "dhcpcd-usb0.conf" /etc/dhcpcd.conf 2>/dev/null; then
     echo "Configuring USB tether (dhcpcd)..."
