@@ -12,11 +12,11 @@ import kotlinx.coroutines.flow.map
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 private val PI_HOST_KEY = stringPreferencesKey("pi_host")
 
-private const val DEFAULT_PI_HOST = "carhud.local"
+private const val DEFAULT_PI_HOST = "auto"
 
 /**
- * Stored Pi IP address. Android 11+ randomizes USB tether subnet, so the IP
- * can change. Set this in Settings to match `ip addr show usb0` on the Pi.
+ * Stored Pi host: "auto" to discover on local network, or IP/hostname.
+ * Android 11+ randomizes USB tether subnet; "auto" probes the subnet for the Pi.
  */
 object PiHostSettings {
 
@@ -27,7 +27,7 @@ object PiHostSettings {
 
     suspend fun setHost(context: Context, host: String) {
         context.settingsDataStore.edit { prefs ->
-            prefs[PI_HOST_KEY] = host
+            prefs[PI_HOST_KEY] = host.trim().replace("carhud_local", "carhud.local")
         }
     }
 }

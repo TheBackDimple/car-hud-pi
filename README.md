@@ -65,11 +65,10 @@ npm run dev
 
 ## USB Tether Networking
 
-- Pi IP: `192.168.254.2`
-- Phone IP: `192.168.254.1`
-- WebSocket: `ws://192.168.254.2:8000/ws`
+The Android app connects to the Pi over USB tethering. By default it uses **auto-discovery** to find the Pi on the USB subnet (no manual IP needed). See [docs/USB_TETHERING.md](docs/USB_TETHERING.md) for:
 
-See `networking/dhcpcd-usb0.conf` for dhcpcd configuration.
+- **Auto-enable USB tethering** – Developer Options → Default USB configuration → USB tethering (no manual toggle when plugging in)
+- **Auto Pi discovery** – Set Pi host to `auto` in app Settings (default)
 
 ## Chromium Kiosk & Reflective Display (Phase 3)
 

@@ -52,7 +52,7 @@ fun HomeScreen(
     val connectionState by HudConnectionHolder.state.collectAsState()
     val activePresetName by ActivePresetHolder.name.collectAsState()
     val context = LocalContext.current
-    val piHost by PiHostSettings.getHost(context).collectAsState(initial = "carhud.local")
+    val piHost by PiHostSettings.getHost(context).collectAsState(initial = "auto")
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()

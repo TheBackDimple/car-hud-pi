@@ -7,7 +7,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
@@ -19,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
@@ -28,6 +28,7 @@ import java.security.SecureRandom
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 import java.util.concurrent.TimeUnit
+import java.util.regex.Pattern
 
 /**
  * Foreground service that maintains WebSocket connection to the Pi.
@@ -43,42 +44,31 @@ class HudConnectionService : Service() {
     }
 
     private val client: OkHttpClient by lazy {
+        val trustAllCerts = object : X509TrustManager {
+            override fun checkClientTrusted(
+                chain: Array<java.security.cert.X509Certificate>,
+                authType: String
+            ) = Unit
+
+            override fun checkServerTrusted(
+                chain: Array<java.security.cert.X509Certificate>,
+                authType: String
+            ) = Unit
+
+            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> =
+                emptyArray()
+        }
+
+        val sslContext = SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf<javax.net.ssl.TrustManager>(trustAllCerts), SecureRandom())
+        }
+
         OkHttpClient.Builder()
             .pingInterval(20, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .writeTimeout(10, TimeUnit.SECONDS)
-            .apply {
-                // Pi/dev commonly uses self-signed TLS certs; Android needs explicit trust.
-                val isDebuggable =
-                    (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-                if (isDebuggable) {
-                    val trustAllCerts = object : X509TrustManager {
-                        override fun checkClientTrusted(
-                            chain: Array<java.security.cert.X509Certificate>,
-                            authType: String
-                        ) = Unit
-
-                        override fun checkServerTrusted(
-                            chain: Array<java.security.cert.X509Certificate>,
-                            authType: String
-                        ) = Unit
-
-                        override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> =
-                            emptyArray()
-                    }
-
-                    val sslContext = SSLContext.getInstance("TLS").apply {
-                        init(
-                            null,
-                            arrayOf<javax.net.ssl.TrustManager>(trustAllCerts),
-                            SecureRandom()
-                        )
-                    }
-
-                    sslSocketFactory(sslContext.socketFactory, trustAllCerts)
-                    hostnameVerifier { _, _ -> true } // self-signed cert for localhost may not match Pi IP
-                }
-            }
+            .sslSocketFactory(sslContext.socketFactory, trustAllCerts)
+            .hostnameVerifier { _, _ -> true }
             .build()
     }
 
@@ -95,8 +85,12 @@ class HudConnectionService : Service() {
             ACTION_CONNECT -> {
                 startForegroundNotification()
                 piHost = (intent.getStringExtra(EXTRA_PI_HOST) ?: DEFAULT_PI_HOST)
-            .replace("carhud_local", "carhud.local")  // common typo
-                connect()
+                    .replace("carhud_local", "carhud.local")
+                if (piHost.equals("auto", ignoreCase = true)) {
+                    serviceScope.launch { discoverAndConnect() }
+                } else {
+                    connect()
+                }
             }
             ACTION_DISCONNECT -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -109,9 +103,25 @@ class HudConnectionService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private suspend fun discoverAndConnect() {
+        updateState(ConnectionState.Connecting)
+        val discovered = withContext(Dispatchers.IO) { PiDiscovery.discover(this@HudConnectionService) }
+        if (discovered != null) {
+            piHost = discovered
+            PiHostSettings.setHost(this@HudConnectionService, discovered)
+            connect()
+        } else {
+            updateState(ConnectionState.Error("Pi not found on network. Enable USB tethering and try again, or set Pi IP in Settings."))
+        }
+    }
+
     private fun connect() {
         if (webSocket != null) {
             disconnect()
+        }
+        if (isInvalidHost(piHost)) {
+            updateState(ConnectionState.Error("Invalid Pi host \"$piHost\". Use \"auto\" or a valid IP (e.g. 192.168.171.140). .255 is broadcast, not a host."))
+            return
         }
         updateState(ConnectionState.Connecting)
 
@@ -183,6 +193,15 @@ class HudConnectionService : Service() {
         locationProvider = null
     }
 
+    /** Rejects broadcast (.255), network (.0), and obviously invalid IPs. */
+    private fun isInvalidHost(host: String): Boolean {
+        if (host.isBlank() || host.equals("auto", ignoreCase = true)) return false
+        val m = IPV4_PATTERN.matcher(host)
+        if (!m.matches()) return false
+        val lastOctet = m.group(4)?.toIntOrNull() ?: return true
+        return lastOctet == 0 || lastOctet == 255
+    }
+
     private fun disconnect() {
         stopGpsStreaming()
         reconnectJob?.cancel()
@@ -235,9 +254,10 @@ class HudConnectionService : Service() {
     }
 
     companion object {
+        private val IPV4_PATTERN = Pattern.compile("^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$")
         private const val CHANNEL_ID = "hud_connection"
         private const val NOTIFICATION_ID = 1
-        private const val DEFAULT_PI_HOST = "carhud.local"
+        private const val DEFAULT_PI_HOST = "auto"
         private const val RECONNECT_DELAY_MS = 5000L
 
         const val ACTION_CONNECT = "com.example.carhud.CONNECT"

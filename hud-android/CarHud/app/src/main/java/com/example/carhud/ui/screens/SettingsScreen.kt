@@ -35,7 +35,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val quality by MapStreamSettings.quality.collectAsState()
     val fps by MapStreamSettings.fps.collectAsState()
-    val piHost by PiHostSettings.getHost(context).collectAsState(initial = "carhud.local")
+    val piHost by PiHostSettings.getHost(context).collectAsState(initial = "auto")
 
     Scaffold(
         topBar = {
@@ -55,16 +55,16 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
         ) {
             Text(
-                "Pi host: use carhud.local (dot) or Pi IP from ip addr show usb0",
+                "Pi host: \"auto\" discovers on USB subnet, or enter IP (e.g. 192.168.171.140)",
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
             OutlinedTextField(
                 value = piHost,
-                onValueChange = { scope.launch { PiHostSettings.setHost(context, it.replace("carhud_local", "carhud.local")) } },
+                onValueChange = { scope.launch { PiHostSettings.setHost(context, it.replace("carhud_local", "carhud.local").trim()) } },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                placeholder = { Text("carhud.local or 192.168.171.140") }
+                placeholder = { Text("auto or 192.168.171.140") }
             )
 
             Text(
