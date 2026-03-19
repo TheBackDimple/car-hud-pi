@@ -39,16 +39,30 @@ if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/nul
     sudo apt-get install -y chromium-browser 2>/dev/null || sudo apt-get install -y chromium
 fi
 
-# Configure dhcpcd for USB tethering (usb0 → 192.168.42.2, Android gateway 192.168.42.129)
-DHCPCD_INCLUDE="include $PROJECT_DIR/networking/dhcpcd-usb0.conf"
-if ! grep -qF "dhcpcd-usb0.conf" /etc/dhcpcd.conf 2>/dev/null; then
-    echo "Configuring USB tether (dhcpcd)..."
-    echo "" | sudo tee -a /etc/dhcpcd.conf
-    echo "# Car HUD USB tether" | sudo tee -a /etc/dhcpcd.conf
-    echo "$DHCPCD_INCLUDE" | sudo tee -a /etc/dhcpcd.conf
-    echo "  Added $DHCPCD_INCLUDE to /etc/dhcpcd.conf"
+# Configure USB tethering (usb0 → 192.168.42.2, Android gateway 192.168.42.129)
+# Pi OS Bookworm+ uses NetworkManager; older versions use dhcpcd
+if systemctl is-active NetworkManager &>/dev/null; then
+    echo "Configuring USB tether (NetworkManager)..."
+    NM_CONN="/etc/NetworkManager/system-connections/car-hud-usb0.nmconnection"
+    sudo mkdir -p "$(dirname "$NM_CONN")"
+    sudo cp "$PROJECT_DIR/networking/usb0.nmconnection" "$NM_CONN"
+    sudo chmod 600 "$NM_CONN"
+    sudo systemctl reload NetworkManager
+    echo "  Added $NM_CONN (usb0 will get 192.168.42.2 when phone is tethered)"
+elif [ -f /etc/dhcpcd.conf ]; then
+    DHCPCD_INCLUDE="include $PROJECT_DIR/networking/dhcpcd-usb0.conf"
+    if ! grep -qF "dhcpcd-usb0.conf" /etc/dhcpcd.conf 2>/dev/null; then
+        echo "Configuring USB tether (dhcpcd)..."
+        echo "" | sudo tee -a /etc/dhcpcd.conf
+        echo "# Car HUD USB tether" | sudo tee -a /etc/dhcpcd.conf
+        echo "$DHCPCD_INCLUDE" | sudo tee -a /etc/dhcpcd.conf
+        echo "  Added $DHCPCD_INCLUDE to /etc/dhcpcd.conf"
+        sudo systemctl restart dhcpcd 2>/dev/null || true
+    else
+        echo "USB tether config already in /etc/dhcpcd.conf"
+    fi
 else
-    echo "USB tether config already in /etc/dhcpcd.conf"
+    echo "  Warning: Neither NetworkManager nor dhcpcd found. USB tether may need manual config."
 fi
 
 # Disable screen blanking (persistent across reboots)
