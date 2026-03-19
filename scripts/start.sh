@@ -13,7 +13,31 @@ xset s noblank 2>/dev/null || true
 
 # Start FastAPI backend (run from project root so backend package resolves)
 cd "$PROJECT_DIR"
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
+
+# ---- TLS (self-signed for local dev) ----
+CERT_DIR="$PROJECT_DIR/certs"
+KEY_FILE="$CERT_DIR/localhost-key.pem"
+CERT_FILE="$CERT_DIR/localhost-cert.pem"
+mkdir -p "$CERT_DIR"
+
+if [ ! -f "$KEY_FILE" ] || [ ! -f "$CERT_FILE" ]; then
+  if ! command -v openssl &>/dev/null; then
+    echo "ERROR: openssl not found; cannot generate self-signed certs." >&2
+    exit 1
+  fi
+
+  # Try generating with SAN so TLS hostname verification is more likely to pass.
+  if ! openssl req -x509 -newkey rsa:2048 -nodes \
+    -keyout "$KEY_FILE" -out "$CERT_FILE" -days 365 \
+    -subj "/CN=localhost" \
+    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:192.168.254.2" &>/dev/null; then
+    openssl req -x509 -newkey rsa:2048 -nodes \
+      -keyout "$KEY_FILE" -out "$CERT_FILE" -days 365 \
+      -subj "/CN=localhost" &>/dev/null
+  fi
+fi
+
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile "$KEY_FILE" --ssl-certfile "$CERT_FILE" &
 BACKEND_PID=$!
 
 # Start OBD reader if port exists (Bluetooth OBD paired with Pi)
@@ -21,7 +45,7 @@ BACKEND_PID=$!
 # Bind with: sudo rfcomm bind 0 <MAC_ADDRESS>
 OBD_PID=""
 if [ -e /dev/rfcomm0 ]; then
-    python3 "$SCRIPT_DIR/obd_reader.py" --port /dev/rfcomm0 --ws-url "ws://127.0.0.1:8000/ws?role=obd" &
+    python3 "$SCRIPT_DIR/obd_reader.py" --port /dev/rfcomm0 --ws-url "wss://127.0.0.1:8000/ws?role=obd" &
     OBD_PID=$!
 else
     echo "OBD: /dev/rfcomm0 not found (pair OBD adapter with Pi to enable)"
@@ -37,13 +61,15 @@ $CHROMIUM_CMD \
   --kiosk \
   --noerrdialogs \
   --disable-infobars \
+  --ignore-certificate-errors \
+  --allow-insecure-localhost \
   --disable-session-crashed-bubble \
   --disable-translate \
   --no-first-run \
   --start-fullscreen \
   --window-size=1280,720 \
   --autoplay-policy=no-user-gesture-required \
-  http://localhost:8000
+  https://localhost:8000
 
 # Cleanup
 [ -n "$OBD_PID" ] && kill $OBD_PID 2>/dev/null || true

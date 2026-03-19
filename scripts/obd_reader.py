@@ -31,7 +31,7 @@ logger = logging.getLogger("obd_reader")
 
 # Default port for Bluetooth OBD (rfcomm bind creates /dev/rfcomm0)
 DEFAULT_OBD_PORT = os.environ.get("OBD_PORT", "/dev/rfcomm0")
-DEFAULT_WS_URL = os.environ.get("HUD_WS_URL", "ws://127.0.0.1:8000/ws?role=obd")
+DEFAULT_WS_URL = os.environ.get("HUD_WS_URL", "wss://127.0.0.1:8000/ws?role=obd")
 POLL_INTERVAL_SEC = 0.5  # 2 Hz
 
 

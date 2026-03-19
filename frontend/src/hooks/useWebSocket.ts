@@ -4,7 +4,9 @@ import type { LayoutPreset } from '../types/layout';
 
 const WS_URL = import.meta.env.DEV
   ? 'ws://localhost:8000/ws?role=hud'
-  : `ws://${window.location.host}/ws?role=hud`;
+  : window.location.protocol === 'https:'
+    ? `wss://${window.location.host}/ws?role=hud`
+    : `ws://${window.location.host}/ws?role=hud`;
 
 const MAX_BACKOFF_MS = 10000;
 const INITIAL_BACKOFF_MS = 1000;

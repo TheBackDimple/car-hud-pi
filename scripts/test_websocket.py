@@ -7,6 +7,7 @@ Then run this from project root: python scripts/test_websocket.py
 import asyncio
 import json
 import sys
+import os
 from pathlib import Path
 
 # Add project root to path
@@ -21,7 +22,9 @@ except ImportError:
 
 async def test_hud_client():
     """Connect as HUD, request state, receive messages."""
-    uri = "ws://localhost:8000/ws?role=hud"
+    use_tls = os.environ.get("USE_TLS", "").lower() in ("1", "true", "yes")
+    scheme = "wss" if use_tls else "ws"
+    uri = f"{scheme}://localhost:8000/ws?role=hud"
     async with websockets.connect(uri) as ws:
         # Request state (simulates frontend reconnect)
         await ws.send(json.dumps({"type": "request_state", "payload": {}, "timestamp": None}))
@@ -34,7 +37,9 @@ async def test_hud_client():
 
 async def test_android_client():
     """Connect as Android, send hud_data, verify it's relayed."""
-    uri = "ws://localhost:8000/ws?role=android"
+    use_tls = os.environ.get("USE_TLS", "").lower() in ("1", "true", "yes")
+    scheme = "wss" if use_tls else "ws"
+    uri = f"{scheme}://localhost:8000/ws?role=android"
     async with websockets.connect(uri) as ws:
         # Send hud_data
         msg = {

@@ -20,17 +20,17 @@ private val PRESET_3 = stringPreferencesKey("preset_3")
 
 private val json = Json { ignoreUnknownKeys = true }
 
-/** Default preset with all components. */
+/** Default preset: 4×3 grid. Left: speed, obd. Center: map (2×3 full middle). Right: nav, gpsSpeed, fuel. */
 fun defaultPreset(presetId: Int, name: String): LayoutPreset = LayoutPreset(
     presetId = presetId,
     name = name,
     components = listOf(
-        HudComponent("speed", true, 0.02f, 0.05f, 0.22f, 0.25f),
-        HudComponent("map", true, 0.28f, 0.05f, 0.44f, 0.6f),
-        HudComponent("nav", true, 0.75f, 0.05f, 0.22f, 0.25f),
-        HudComponent("obd", true, 0.02f, 0.35f, 0.22f, 0.25f),
-        HudComponent("fuel", true, 0.02f, 0.65f, 0.22f, 0.25f),
-        HudComponent("gpsSpeed", true, 0.75f, 0.35f, 0.22f, 0.2f),
+        HudComponent("speed", true, 0f, 0f, 0.25f, 1f / 3f),
+        HudComponent("map", true, 0.25f, 0f, 0.5f, 1f),
+        HudComponent("nav", true, 0.75f, 0f, 0.25f, 1f / 3f),
+        HudComponent("obd", true, 0f, 1f / 3f, 0.25f, 1f / 3f),
+        HudComponent("fuel", true, 0.75f, 2f / 3f, 0.25f, 1f / 3f),
+        HudComponent("gpsSpeed", true, 0.75f, 1f / 3f, 0.25f, 1f / 3f),
     )
 )
 

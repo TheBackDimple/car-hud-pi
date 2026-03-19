@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
@@ -23,6 +24,9 @@ import okhttp3.Request
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import java.security.SecureRandom
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
 import java.util.concurrent.TimeUnit
 
 /**
@@ -38,11 +42,45 @@ class HudConnectionService : Service() {
         HudConnectionHolder.updateState(newState)
     }
 
-    private val client = OkHttpClient.Builder()
-        .pingInterval(20, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS)
-        .build()
+    private val client: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .pingInterval(20, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .apply {
+                // Pi/dev commonly uses self-signed TLS certs; Android needs explicit trust.
+                val isDebuggable =
+                    (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                if (isDebuggable) {
+                    val trustAllCerts = object : X509TrustManager {
+                        override fun checkClientTrusted(
+                            chain: Array<java.security.cert.X509Certificate>,
+                            authType: String
+                        ) = Unit
+
+                        override fun checkServerTrusted(
+                            chain: Array<java.security.cert.X509Certificate>,
+                            authType: String
+                        ) = Unit
+
+                        override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> =
+                            emptyArray()
+                    }
+
+                    val sslContext = SSLContext.getInstance("TLS").apply {
+                        init(
+                            null,
+                            arrayOf<javax.net.ssl.TrustManager>(trustAllCerts),
+                            SecureRandom()
+                        )
+                    }
+
+                    sslSocketFactory(sslContext.socketFactory, trustAllCerts)
+                    hostnameVerifier { _, _ -> true } // self-signed cert for localhost may not match Pi IP
+                }
+            }
+            .build()
+    }
 
     private var webSocket: WebSocket? = null
     private var piHost: String = DEFAULT_PI_HOST
@@ -76,7 +114,7 @@ class HudConnectionService : Service() {
         }
         updateState(ConnectionState.Connecting)
 
-        val url = "ws://$piHost:8000/ws?role=android"
+        val url = "wss://$piHost:8000/ws?role=android"
         val request = Request.Builder().url(url).build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
