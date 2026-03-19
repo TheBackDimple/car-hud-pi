@@ -48,7 +48,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
         ) {
             Text(
-                "Pi IP: 192.168.1.251 (default)",
+                "Pi IP: 192.168.254.2 (USB tether)",
                 style = MaterialTheme.typography.bodyMedium
             )
 
