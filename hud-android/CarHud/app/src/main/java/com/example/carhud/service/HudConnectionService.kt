@@ -94,7 +94,8 @@ class HudConnectionService : Service() {
         when (intent?.action) {
             ACTION_CONNECT -> {
                 startForegroundNotification()
-                piHost = intent.getStringExtra(EXTRA_PI_HOST) ?: DEFAULT_PI_HOST
+                piHost = (intent.getStringExtra(EXTRA_PI_HOST) ?: DEFAULT_PI_HOST)
+            .replace("carhud_local", "carhud.local")  // common typo
                 connect()
             }
             ACTION_DISCONNECT -> {

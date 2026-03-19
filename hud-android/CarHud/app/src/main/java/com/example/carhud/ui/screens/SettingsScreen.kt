@@ -55,16 +55,16 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
         ) {
             Text(
-                "Pi host (carhud.local via mDNS, or IP if mDNS fails)",
+                "Pi host: use carhud.local (dot) or Pi IP from ip addr show usb0",
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
             OutlinedTextField(
                 value = piHost,
-                onValueChange = { scope.launch { PiHostSettings.setHost(context, it) } },
+                onValueChange = { scope.launch { PiHostSettings.setHost(context, it.replace("carhud_local", "carhud.local")) } },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                placeholder = { Text("carhud.local or 192.168.x.x") }
+                placeholder = { Text("carhud.local or 192.168.171.140") }
             )
 
             Text(
