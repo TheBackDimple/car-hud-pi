@@ -236,7 +236,7 @@ class HudConnectionService : Service() {
     companion object {
         private const val CHANNEL_ID = "hud_connection"
         private const val NOTIFICATION_ID = 1
-        private const val DEFAULT_PI_HOST = "192.168.254.2"
+        private const val DEFAULT_PI_HOST = "192.168.1.251"
         private const val RECONNECT_DELAY_MS = 5000L
 
         const val ACTION_CONNECT = "com.example.carhud.CONNECT"

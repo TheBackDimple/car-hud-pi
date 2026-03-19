@@ -8,13 +8,13 @@ Detailed step-by-step instructions for validating Bug 1 (TLS/WebSocket Connect) 
 
 | Item | Notes |
 |------|------|
-| **Raspberry Pi** | Running the HUD stack (backend + frontend). Default Pi IP: `192.168.254.2` |
+| **Raspberry Pi** | Running the HUD stack (backend + frontend). Default Pi IP: `192.168.1.251` |
 | **Android device** | Physical device or emulator. Emulator must be on same network as Pi (or use `10.0.2.2` for localhost if Pi runs on host). |
 | **Network** | Pi and Android on same LAN (Wi‑Fi). |
 | **Certs** | `scripts/start.sh` auto-generates self-signed certs in `certs/` if missing. |
 
 **Emulator vs physical device:**  
-- **Emulator:** Use Pi’s LAN IP (e.g. `192.168.254.2`). If Pi runs on your dev machine, you may need port forwarding or a real Pi.  
+- **Emulator:** Use Pi’s LAN IP (e.g. `192.168.1.251`). If Pi runs on your dev machine, you may need port forwarding or a real Pi.  
 - **Physical device:** Same Wi‑Fi as Pi; use Pi’s IP. Debug builds trust self-signed certs; release builds need a trusted cert or user-installed CA.
 
 ---
@@ -44,12 +44,12 @@ Detailed step-by-step instructions for validating Bug 1 (TLS/WebSocket Connect) 
 
 4. **Check for errors**
    - **Pass:** Status card shows **"Connected"** (green).
-   - **Fail:** Status card shows **"Error: CLEARTEXT communication to 192.168.254.2 not permitted..."** or similar.
+   - **Fail:** Status card shows **"Error: CLEARTEXT communication to 192.168.1.251 not permitted..."** or similar.
 
 **Troubleshooting:**
 - If you see CLEARTEXT: app is still using `ws://`. Verify `HudConnectionService.kt` uses `wss://$piHost:8000/ws?role=android`.
 - If you see SSL/certificate errors: debug build should trust self-signed. Ensure `ApplicationInfo.FLAG_DEBUGGABLE` is set (debug builds only).
-- If "Connecting…" never changes: check Pi IP in Settings (default `192.168.254.2`), firewall, and that backend is listening on `0.0.0.0:8000`.
+- If "Connecting…" never changes: check Pi IP in Settings (default `192.168.1.251`), firewall, and that backend is listening on `0.0.0.0:8000`.
 
 ---
 
@@ -125,7 +125,7 @@ Detailed step-by-step instructions for validating Bug 1 (TLS/WebSocket Connect) 
    - HUD page loads (no certificate warning in kiosk mode due to `--ignore-certificate-errors`).
 4. **Check cert generation**
    - If `certs/localhost-key.pem` and `certs/localhost-cert.pem` were missing, they are created.
-   - SAN should include `DNS:localhost`, `IP:127.0.0.1`, `IP:192.168.254.2` if OpenSSL supports `-addext`.
+   - SAN should include `DNS:localhost`, `IP:127.0.0.1`, `IP:192.168.254.2`, `IP:192.168.1.251` if OpenSSL supports `-addext`.
 
 **Pass:** Backend starts cleanly; Chromium shows HUD.  
 **Fail:** SSL errors on startup; Chromium fails to load; or cert generation fails (e.g. no `openssl`).

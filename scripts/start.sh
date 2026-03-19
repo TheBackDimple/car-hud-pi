@@ -30,7 +30,7 @@ if [ ! -f "$KEY_FILE" ] || [ ! -f "$CERT_FILE" ]; then
   if ! openssl req -x509 -newkey rsa:2048 -nodes \
     -keyout "$KEY_FILE" -out "$CERT_FILE" -days 365 \
     -subj "/CN=localhost" \
-    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:192.168.254.2" &>/dev/null; then
+    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:192.168.254.2,IP:192.168.1.251" &>/dev/null; then
     openssl req -x509 -newkey rsa:2048 -nodes \
       -keyout "$KEY_FILE" -out "$CERT_FILE" -days 365 \
       -subj "/CN=localhost" &>/dev/null
