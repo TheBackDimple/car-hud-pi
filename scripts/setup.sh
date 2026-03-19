@@ -24,13 +24,18 @@ if ! command -v bluetoothctl &>/dev/null; then
 fi
 
 # Build React frontend (requires Node.js)
+# Run as HUD_USER - npm can fail with permission errors when run as root
 if ! command -v npm &>/dev/null; then
     echo "Node.js/npm not found. Install with: curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs"
     echo "Or: sudo apt-get install -y nodejs npm"
     exit 1
 fi
 echo "Building frontend..."
-"$SCRIPT_DIR/build-frontend.sh"
+if [ "$(id -u)" = 0 ]; then
+    sudo -u "$HUD_USER" "$SCRIPT_DIR/build-frontend.sh"
+else
+    "$SCRIPT_DIR/build-frontend.sh"
+fi
 
 # Install Chromium if not present (package name varies: chromium-browser or chromium)
 if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/null; then
