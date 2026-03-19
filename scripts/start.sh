@@ -37,7 +37,7 @@ if [ ! -f "$KEY_FILE" ] || [ ! -f "$CERT_FILE" ]; then
   fi
 fi
 
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile "$KEY_FILE" --ssl-certfile "$CERT_FILE" &
+python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile "$KEY_FILE" --ssl-certfile "$CERT_FILE" &
 BACKEND_PID=$!
 
 # Start OBD reader if port exists (Bluetooth OBD paired with Pi)
