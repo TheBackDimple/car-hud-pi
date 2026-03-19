@@ -36,6 +36,7 @@ import com.example.carhud.service.ConnectionState
 import com.example.carhud.service.HudConnectionHolder
 import com.example.carhud.service.HudConnectionService
 import com.example.carhud.service.ActivePresetHolder
+import com.example.carhud.service.PiHostSettings
 import com.example.carhud.service.TripStateHolder
 import com.example.carhud.ui.theme.CarHudTheme
 
@@ -51,19 +52,20 @@ fun HomeScreen(
     val connectionState by HudConnectionHolder.state.collectAsState()
     val activePresetName by ActivePresetHolder.name.collectAsState()
     val context = LocalContext.current
+    val piHost by PiHostSettings.getHost(context).collectAsState(initial = "carhud.local")
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         if (results.values.any { it }) {
-            HudConnectionService.startConnect(context)
+            HudConnectionService.startConnect(context, piHost)
         }
     }
 
     fun onConnectClick() {
         when {
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ->
-                HudConnectionService.startConnect(context)
+                HudConnectionService.startConnect(context, piHost)
             else -> permissionLauncher.launch(
                 arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
             )

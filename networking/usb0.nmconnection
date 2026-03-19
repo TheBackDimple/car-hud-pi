@@ -6,10 +6,8 @@ autoconnect=yes
 autoconnect-priority=100
 
 [ipv4]
-method=manual
-addresses=192.168.42.2/24
-gateway=192.168.42.129
-dns=8.8.8.8;
+method=auto
+# Phone assigns IP via DHCP; Avahi advertises it as carhud.local
 
 [ipv6]
 method=disabled

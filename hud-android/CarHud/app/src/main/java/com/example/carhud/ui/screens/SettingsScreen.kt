@@ -11,24 +11,31 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.carhud.service.MapStreamSettings
+import com.example.carhud.service.PiHostSettings
 import com.example.carhud.ui.theme.CarHudTheme
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onNavigateBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val quality by MapStreamSettings.quality.collectAsState()
     val fps by MapStreamSettings.fps.collectAsState()
+    val piHost by PiHostSettings.getHost(context).collectAsState(initial = "carhud.local")
 
     Scaffold(
         topBar = {
@@ -48,8 +55,16 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
         ) {
             Text(
-                "Pi IP: 192.168.42.2 (USB tether)",
-                style = MaterialTheme.typography.bodyMedium
+                "Pi host (carhud.local via mDNS, or IP if mDNS fails)",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            OutlinedTextField(
+                value = piHost,
+                onValueChange = { scope.launch { PiHostSettings.setHost(context, it) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("carhud.local or 192.168.x.x") }
             )
 
             Text(

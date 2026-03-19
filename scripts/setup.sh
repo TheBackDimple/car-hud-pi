@@ -39,7 +39,21 @@ if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/nul
     sudo apt-get install -y chromium-browser 2>/dev/null || sudo apt-get install -y chromium
 fi
 
-# Configure USB tethering (usb0 → 192.168.42.2, Android gateway 192.168.42.129)
+# Install Avahi for mDNS (carhud.local) - no need to update IP in app after each boot
+if ! command -v avahi-daemon &>/dev/null; then
+    echo "Installing Avahi (mDNS)..."
+    sudo apt-get install -y avahi-daemon
+fi
+sudo systemctl enable avahi-daemon
+sudo systemctl start avahi-daemon 2>/dev/null || true
+# Set hostname so Pi advertises as carhud.local
+if [ "$(hostname)" != "carhud" ]; then
+    echo "Setting hostname to carhud..."
+    sudo hostnamectl set-hostname carhud
+fi
+grep -q "carhud" /etc/hosts 2>/dev/null || echo "127.0.0.1 carhud" | sudo tee -a /etc/hosts
+
+# Configure USB tethering (usb0 gets IP via DHCP from phone; mDNS advertises it as carhud.local)
 # Pi OS Bookworm+ uses NetworkManager; older versions use dhcpcd
 if systemctl is-active NetworkManager &>/dev/null; then
     echo "Configuring USB tether (NetworkManager)..."
