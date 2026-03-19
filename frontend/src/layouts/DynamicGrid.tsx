@@ -1,5 +1,6 @@
 import { useHudStore } from '../hooks/useHudStore';
 import { WidgetRenderer } from '../components/WidgetRenderer';
+import type { HudComponent } from '../types/layout';
 
 /** 4×3 grid cell size. Padding so blocks sit centered (matches Android). */
 const CELL_W = 1 / 4;
@@ -49,7 +50,7 @@ export function DynamicGrid() {
               ...visualStyle(c),
             }}
           >
-            <WidgetRenderer type={c.type} />
+            <WidgetRenderer type={c.type as HudComponent['type']} />
           </div>
         ))}
     </div>
