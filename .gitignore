@@ -1,0 +1,3 @@
+# TLS material — generated locally by scripts/start.sh (self-signed dev only).
+# Never commit keys or certs; scanners flag these as exposed secrets.
+certs/*.pem

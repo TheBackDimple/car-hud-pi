@@ -12,17 +12,12 @@ Map streaming requires a Google Maps API key.
 
 ## Add to Project
 
-Add your API key to `gradle.properties` in the project root:
-
-```
-MAPS_API_KEY=your_api_key_here
-```
-
-Do **not** commit the key to version control. Add `gradle.properties` to `.gitignore` if it contains secrets, or use `local.properties` (which is typically gitignored):
+Put the key **only** in `hud-android/CarHud/local.properties` (this file is gitignored):
 
 ```properties
-# In local.properties (create if it doesn't exist)
 MAPS_API_KEY=your_api_key_here
 ```
 
-Then in `build.gradle.kts`, ensure the placeholder reads from the right property. The current setup uses `project.findProperty("MAPS_API_KEY")`, which reads from both `gradle.properties` and `local.properties`.
+**Do not** add `MAPS_API_KEY=...` to `gradle.properties` in the repo. Committing it triggers secret scanners (e.g. GitHub) and exposes the key in history. If a key was ever pushed, **rotate it** in Google Cloud Console and create a new key.
+
+`build.gradle.kts` uses `project.findProperty("MAPS_API_KEY")`, which reads `local.properties` and `gradle.properties` — use `local.properties` for secrets only.
