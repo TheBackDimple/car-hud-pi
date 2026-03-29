@@ -88,3 +88,10 @@ The setup script installs Python deps, builds the frontend, configures USB tethe
 ## Implementation Status
 
 See `IMPLEMENTATION_PLAN.md` for the full phased implementation plan. Phases 0–9 (through boot integration) are implemented.
+
+---
+
+## 👤 Author
+
+**Abdiel Marcano** — [Portfolio](https://abdiel-portfolio.vercel.app) · 
+[LinkedIn](https://linkedin.com/in/abdiel-marcano)
