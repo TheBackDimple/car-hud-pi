@@ -60,6 +60,23 @@ sleep 3
 # For normal display (demo/testing, default below):
 #   https://localhost:8000
 
+# Detect actual screen resolution (works for both SPI fbdev and HDMI)
+SCREEN_RES="1280,720"
+if command -v xdpyinfo &>/dev/null; then
+    DETECTED=$(xdpyinfo 2>/dev/null | grep 'dimensions:' | awk '{print $2}' | head -1)
+    if [ -n "$DETECTED" ]; then
+        SCREEN_RES="${DETECTED/x/,}"
+        echo "Detected display: ${DETECTED}"
+    fi
+fi
+
+# On small SPI displays, disable GPU compositing (no KMS/DRM backing)
+EXTRA_FLAGS=""
+if [ -f /etc/X11/xorg.conf.d/99-spi-tft.conf ]; then
+    EXTRA_FLAGS="--disable-gpu --disable-software-rasterizer"
+    echo "SPI display mode: GPU compositing disabled"
+fi
+
 # Launch Chromium in kiosk mode (chromium-browser or chromium depending on distro)
 CHROMIUM_CMD="chromium-browser"
 command -v chromium-browser &>/dev/null || CHROMIUM_CMD="chromium"
@@ -73,8 +90,9 @@ $CHROMIUM_CMD \
   --disable-translate \
   --no-first-run \
   --start-fullscreen \
-  --window-size=1280,720 \
+  --window-size="$SCREEN_RES" \
   --autoplay-policy=no-user-gesture-required \
+  $EXTRA_FLAGS \
   https://localhost:8000
 
 # Cleanup
