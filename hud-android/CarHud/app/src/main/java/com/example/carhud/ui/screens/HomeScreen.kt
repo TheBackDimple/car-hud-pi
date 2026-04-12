@@ -32,10 +32,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.example.carhud.CarHudApplication
 import com.example.carhud.service.ConnectionState
 import com.example.carhud.service.HudConnectionHolder
 import com.example.carhud.service.HudConnectionService
 import com.example.carhud.service.ActivePresetHolder
+import com.example.carhud.service.ObdBleConnectionState
+import com.example.carhud.service.ObdLiveData
 import com.example.carhud.service.PiHostSettings
 import com.example.carhud.ui.theme.CarHudTheme
 
@@ -52,6 +55,10 @@ fun HomeScreen(
     val activePresetName by ActivePresetHolder.name.collectAsState()
     val context = LocalContext.current
     val piHost by PiHostSettings.getHost(context).collectAsState(initial = "auto")
+
+    val ble = (context.applicationContext as CarHudApplication).bleObdProvider
+    val obdState by ble.connectionState.collectAsState()
+    val obdLive by ble.latestObd.collectAsState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -106,7 +113,7 @@ fun HomeScreen(
         ) {
             ConnectionStatusCard(connectionState)
 
-            Spacer(modifier = Modifier.height(24.dp))
+            ObdLiveCard(obdState, obdLive)
 
             Button(
                 onClick = {
@@ -214,6 +221,78 @@ private fun ConnectionStatusCard(state: ConnectionState) {
                 style = MaterialTheme.typography.titleMedium
             )
         }
+    }
+}
+
+@Composable
+private fun ObdLiveCard(obdState: ObdBleConnectionState, data: ObdLiveData?) {
+    val isConnected = obdState is ObdBleConnectionState.Connected
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
+                alpha = if (isConnected) 1f else 0.5f
+            )
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "OBD-II Live",
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Text(
+                    when (obdState) {
+                        is ObdBleConnectionState.Connected -> "Connected"
+                        is ObdBleConnectionState.Connecting -> "Connecting…"
+                        is ObdBleConnectionState.Scanning -> "Scanning…"
+                        else -> "Not connected"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isConnected) Color(0xFF66BB6A) else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (isConnected && data != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    ObdGauge("MPH", data.speedMph)
+                    ObdGauge("RPM", data.rpm)
+                    ObdGauge("Coolant", data.coolantTemp)
+                    ObdGauge("MPG", data.mpg)
+                    ObdGauge("Fuel", data.fuelLevel)
+                }
+            } else if (!isConnected) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Go to OBD-II to connect your adapter",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ObdGauge(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value.ifBlank { "—" },
+            style = MaterialTheme.typography.titleMedium
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
