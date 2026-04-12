@@ -1,0 +1,209 @@
+:root {
+  --hud-color: #00ff78;
+  --hud-color-dim: #00cc60;
+  --hud-glow: #00ff78;
+}
+
+/* HUD theme — green-on-black, high contrast for reflective display */
+/* Black background = transparent on HUD film */
+
+.hud-root {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  overflow: hidden;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.hud-text {
+  color: var(--hud-color);
+  text-shadow: 0 0 8px var(--hud-glow), 0 0 16px color-mix(in srgb, var(--hud-glow) 25%, transparent);
+}
+
+.hud-text-dim {
+  color: var(--hud-color-dim);
+  text-shadow: 0 0 4px color-mix(in srgb, var(--hud-color-dim) 25%, transparent);
+}
+
+.hud-widget {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0.5vh 0.5vw;
+}
+
+.speed-value {
+  font-size: clamp(5rem, 14vw, 10rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--hud-color);
+  text-shadow: 0 0 12px var(--hud-glow), 0 0 24px var(--hud-glow);
+}
+
+.speed-label {
+  font-size: clamp(1.2rem, 3vw, 2rem);
+  color: var(--hud-color-dim);
+  text-shadow: 0 0 4px var(--hud-color-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 0.25vh;
+}
+
+.speed-gps {
+  font-size: clamp(1rem, 2.5vw, 1.5rem);
+  color: var(--hud-color-dim);
+  text-shadow: 0 0 4px var(--hud-color-dim);
+  margin-top: 0.25vh;
+}
+
+.hud-widget .hud-value {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: 600;
+}
+
+.hud-widget .hud-label {
+  font-size: clamp(0.9rem, 2vw, 1.4rem);
+  color: var(--hud-color-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.map-tile {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 1px solid color-mix(in srgb, var(--hud-color) 25%, transparent);
+}
+
+.map-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hud-color-dim);
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  border: 1px dashed color-mix(in srgb, var(--hud-color) 25%, transparent);
+}
+
+/* Phone disconnected: keep layout slot but no label or frame in the driver’s line of sight */
+.map-placeholder--silent {
+  border: none;
+}
+
+/* Brief hint when phone is linked but no map frame yet — no dashed border */
+.map-placeholder--transient {
+  border: none;
+  font-size: clamp(1rem, 2.2vw, 1.5rem);
+}
+
+.awaiting-config {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--hud-color-dim);
+  font-size: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+.connection-status {
+  position: fixed;
+  top: 0.5vh;
+  right: 0.5vw;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35vh;
+  font-size: clamp(0.85rem, 2vw, 1.1rem);
+  font-weight: 600;
+  color: var(--hud-color);
+  text-shadow: 0 0 6px var(--hud-glow);
+  z-index: 100;
+}
+
+.connection-line {
+  white-space: nowrap;
+}
+
+.connection-status.disconnected {
+  color: #ff6666;
+  text-shadow: 0 0 4px #ff6666;
+}
+
+.hud-disconnect-flash {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 1.2vh 2.5vw;
+  font-size: clamp(1rem, 2.5vw, 1.4rem);
+  font-weight: 600;
+  color: var(--hud-color);
+  text-shadow: 0 0 8px var(--hud-glow);
+  background: color-mix(in srgb, #000 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hud-color) 35%, transparent);
+  border-radius: 4px;
+  z-index: 200;
+  pointer-events: none;
+}
+
+/* Navigation panel with arrows */
+.nav-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0.5vh 0.5vw;
+  gap: 0.3vh;
+}
+
+.nav-arrow {
+  font-size: clamp(4rem, 10vw, 7rem);
+  color: var(--hud-color);
+  text-shadow: 0 0 12px var(--hud-glow), 0 0 24px var(--hud-glow);
+  line-height: 1;
+  font-weight: 700;
+}
+
+.nav-instruction {
+  font-size: clamp(1rem, 2.5vw, 1.8rem);
+  color: var(--hud-color);
+  text-shadow: 0 0 6px var(--hud-glow);
+  line-height: 1.2;
+  white-space: pre-line;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-distance {
+  font-size: clamp(1.2rem, 3vw, 2rem);
+  color: var(--hud-color-dim);
+  text-shadow: 0 0 4px var(--hud-color-dim);
+  margin-top: 0.3vh;
+  font-weight: 600;
+}
+
+.nav-eta {
+  font-size: clamp(0.9rem, 2.2vw, 1.4rem);
+  color: var(--hud-color);
+  text-shadow: 0 0 6px var(--hud-glow);
+  margin-top: 0.3vh;
+  font-weight: 600;
+}
+
+.speed-limit {
+  font-size: clamp(0.8rem, 2vw, 1.2rem);
+  color: var(--hud-color-dim);
+  text-shadow: 0 0 4px var(--hud-color-dim);
+  margin-top: 0.5vh;
+  padding: 0.2vh 0.4vw;
+  border: 1px solid var(--hud-color-dim);
+  border-radius: 4px;
+}
+
+.speed-over-limit .speed-value {
+  color: #ff4444;
+  text-shadow: 0 0 12px #ff4444, 0 0 24px #ff4444;
+}

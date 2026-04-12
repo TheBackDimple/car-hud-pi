@@ -1,0 +1,7 @@
+# Copy this file to "local.properties" (same folder) and set your values.
+# local.properties is listed in .gitignore — never commit it.
+#
+# Android Studio usually adds sdk.dir automatically when you open the project.
+# MAPS_API_KEY is required for Maps, Places, and Directions (see docs/MAPS_SETUP.md).
+
+MAPS_API_KEY=

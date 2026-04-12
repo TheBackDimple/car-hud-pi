@@ -1,0 +1,11 @@
+# TLS material — generated locally by scripts/start.sh (self-signed dev only).
+# Never commit keys or certs; scanners flag these as exposed secrets.
+certs/*.pem
+
+# Android Gradle local overrides: SDK path and MAPS_API_KEY (see docs/MAPS_SETUP.md).
+# hud-android/CarHud/.gitignore also ignores this; keep here so it cannot be re-added by mistake.
+**/local.properties
+
+# Local env files (if used for secrets)
+.env
+.env.local
