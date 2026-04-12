@@ -1,18 +1,42 @@
 #!/bin/bash
 # Start FastAPI backend + OBD reader + Chromium kiosk (Phase 3+)
 # Assumes frontend has been built (run build-frontend.sh first)
+#
+# Works on both:
+#   - SPI TFT (480x320 fbdev, after setup-spi-display.sh)
+#   - HDMI projector (1280x720+ via KMS/Wayland)
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+SPI_MODE=false
+[ -f /etc/X11/xorg.conf.d/99-spi-tft.conf ] && SPI_MODE=true
 
-# Disable screen blanking (Pi must never turn off the display)
 export DISPLAY="${DISPLAY:-:0}"
+
+# ---- SPI mode: start bare X server if no display server is running ----
+STARTED_X=false
+if $SPI_MODE; then
+    if ! pgrep -x Xorg >/dev/null 2>&1 && ! pgrep -x X >/dev/null 2>&1; then
+        echo "SPI mode: starting X server on fb0..."
+        X :0 -keeptty &
+        X_PID=$!
+        STARTED_X=true
+        sleep 2
+    fi
+fi
+
+# Disable screen blanking
 xset s off 2>/dev/null || true
 xset -dpms 2>/dev/null || true
 xset s noblank 2>/dev/null || true
 
 # Start FastAPI backend (run from project root so backend package resolves)
 cd "$PROJECT_DIR"
+
+# Activate venv if present
+if [ -f "$PROJECT_DIR/venv/bin/activate" ]; then
+    . "$PROJECT_DIR/venv/bin/activate"
+fi
 
 # ---- TLS (self-signed for local dev) ----
 CERT_DIR="$PROJECT_DIR/certs"
@@ -60,21 +84,18 @@ sleep 3
 # For normal display (demo/testing, default below):
 #   https://localhost:8000
 
-# Detect actual screen resolution (works for both SPI fbdev and HDMI)
+# Detect screen resolution via xrandr (works for both SPI fbdev and HDMI)
 SCREEN_RES="1280,720"
-if command -v xdpyinfo &>/dev/null; then
-    DETECTED=$(xdpyinfo 2>/dev/null | grep 'dimensions:' | awk '{print $2}' | head -1)
-    if [ -n "$DETECTED" ]; then
-        SCREEN_RES="${DETECTED/x/,}"
-        echo "Detected display: ${DETECTED}"
-    fi
+DETECTED=$(xrandr 2>/dev/null | grep '\*' | awk '{print $1}' | head -1)
+if [ -n "$DETECTED" ]; then
+    SCREEN_RES="${DETECTED/x/,}"
+    echo "Detected display: ${DETECTED}"
 fi
 
-# On small SPI displays, disable GPU compositing (no KMS/DRM backing)
 EXTRA_FLAGS=""
-if [ -f /etc/X11/xorg.conf.d/99-spi-tft.conf ]; then
-    EXTRA_FLAGS="--disable-gpu --disable-software-rasterizer"
-    echo "SPI display mode: GPU compositing disabled"
+if $SPI_MODE; then
+    EXTRA_FLAGS="--disable-gpu --disable-software-rasterizer --force-device-scale-factor=0.95"
+    echo "SPI display mode: GPU disabled, scale=0.95"
 fi
 
 # Launch Chromium in kiosk mode (chromium-browser or chromium depending on distro)
@@ -88,6 +109,7 @@ $CHROMIUM_CMD \
   --allow-insecure-localhost \
   --disable-session-crashed-bubble \
   --disable-translate \
+  --password-store=basic \
   --no-first-run \
   --start-fullscreen \
   --window-size="$SCREEN_RES" \
@@ -98,3 +120,4 @@ $CHROMIUM_CMD \
 # Cleanup
 [ -n "$OBD_PID" ] && kill $OBD_PID 2>/dev/null || true
 kill $BACKEND_PID 2>/dev/null || true
+$STARTED_X && [ -n "$X_PID" ] && kill $X_PID 2>/dev/null || true

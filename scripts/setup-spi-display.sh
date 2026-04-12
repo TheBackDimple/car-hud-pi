@@ -5,21 +5,29 @@
 #   1. Installs xserver-xorg-video-fbdev (X11 framebuffer driver)
 #   2. Creates /etc/X11/xorg.conf.d/99-spi-tft.conf  — forces X to use fb0
 #   3. Comments out phantom-HDMI lines in /boot/firmware/config.txt
-#   4. Configures LightDM for the SPI screen
+#   4. Switches LightDM from Wayland (labwc) to X11 (rpd-x)
+#   5. Creates touch calibration for rotated display
+#   6. Installs hud.service for auto-start on boot
 #
 # Run on the Pi as:  sudo bash scripts/setup-spi-display.sh
 # Reboot after:      sudo reboot
 # Undo later with:   sudo bash scripts/teardown-spi-display.sh
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: Run with sudo" >&2
     exit 1
 fi
 
+HUD_USER="${SUDO_USER:-pi}"
+HUD_HOME="/home/$HUD_USER"
 CONFIG_TXT="/boot/firmware/config.txt"
 XORG_CONF_DIR="/etc/X11/xorg.conf.d"
 XORG_CONF="$XORG_CONF_DIR/99-spi-tft.conf"
+LIGHTDM_CONF="/etc/lightdm/lightdm.conf"
 
 echo "=== SPI TFT Display Setup ==="
 
@@ -86,8 +94,6 @@ if [ -f "$CONFIG_TXT" ]; then
         echo "[OK] Backed up $CONFIG_TXT → $BACKUP"
     fi
 
-    # Comment out lines that create a phantom HDMI output.
-    # We anchor each sed match tightly so we don't clobber unrelated lines.
     sed -i \
         -e 's/^hdmi_force_hotplug=1/# [spi-setup] hdmi_force_hotplug=1/' \
         -e 's/^hdmi_group=2/# [spi-setup] hdmi_group=2/' \
@@ -99,40 +105,66 @@ else
     echo "WARN: $CONFIG_TXT not found — skip patching"
 fi
 
-# ---- 5. Configure LightDM for minimal-memory SPI session ----
-LIGHTDM_CONF="/etc/lightdm/lightdm.conf"
+# ---- 5. Switch LightDM from Wayland (labwc) to X11 ----
 if [ -f "$LIGHTDM_CONF" ]; then
-    # Ensure LightDM doesn't try to set a VT that conflicts with fbcon.
-    # Also set minimum-display-number so it uses :0.
-    if ! grep -q "# spi-setup" "$LIGHTDM_CONF" 2>/dev/null; then
-        LIGHTDM_BAK="$LIGHTDM_CONF.before-spi.bak"
-        [ ! -f "$LIGHTDM_BAK" ] && cp "$LIGHTDM_CONF" "$LIGHTDM_BAK"
+    LIGHTDM_BAK="$LIGHTDM_CONF.before-spi.bak"
+    [ ! -f "$LIGHTDM_BAK" ] && cp "$LIGHTDM_CONF" "$LIGHTDM_BAK"
 
-        # Add under [LightDM] if section exists, or append
-        if grep -q "^\[Seat:\*\]" "$LIGHTDM_CONF"; then
-            sed -i '/^\[Seat:\*\]/a \
-# spi-setup: force X to use vt7 so fbcon console on vt1 is left alone\
-xserver-command=X -keeptty' "$LIGHTDM_CONF"
-        fi
-        echo "[OK] Patched $LIGHTDM_CONF"
-    else
-        echo "[OK] $LIGHTDM_CONF already patched"
+    sed -i \
+        -e 's/^greeter-session=pi-greeter-labwc/greeter-session=pi-greeter/' \
+        -e 's/^user-session=rpd-labwc/user-session=rpd-x/' \
+        -e 's/^autologin-session=rpd-labwc/autologin-session=rpd-x/' \
+        "$LIGHTDM_CONF"
+
+    # Add xserver-command if not already present
+    if ! grep -q "xserver-command=X -keeptty" "$LIGHTDM_CONF" 2>/dev/null; then
+        sed -i '/^\[Seat:\*\]/a xserver-command=X -keeptty' "$LIGHTDM_CONF"
     fi
+    echo "[OK] Switched LightDM to X11 session (rpd-x)"
+else
+    echo "WARN: $LIGHTDM_CONF not found"
 fi
 
-# ---- 6. Grant pi user access to fb0 (udev rule) ----
+# ---- 6. Touch calibration (Y-axis inversion for rotate=270) ----
+TOUCH_CONF="$XORG_CONF_DIR/99-touch-calibration.conf"
+cat > "$TOUCH_CONF" << 'TOUCHEOF'
+Section "InputClass"
+    Identifier "SPI Touchscreen"
+    MatchProduct "ADS7846"
+    Option "TransformationMatrix" "1 0 0 0 -1 1 0 0 1"
+EndSection
+TOUCHEOF
+echo "[OK] Created $TOUCH_CONF (Y-axis fix for rotate=270)"
+
+# ---- 7. Grant pi user access to fb0 (udev rule) ----
 UDEV_RULE="/etc/udev/rules.d/99-fbdev.rules"
 if [ ! -f "$UDEV_RULE" ]; then
     echo 'SUBSYSTEM=="graphics", KERNEL=="fb0", MODE="0666"' > "$UDEV_RULE"
     echo "[OK] Created $UDEV_RULE (world-readable fb0)"
 fi
 
+# ---- 8. Install hud.service ----
+echo "Installing hud.service..."
+SERVICE_FILE="$PROJECT_DIR/systemd/hud.service"
+if [ -f "$SERVICE_FILE" ]; then
+    sed -e "s|/home/pi/car-hud-pi|$PROJECT_DIR|g" \
+        -e "s|User=pi|User=$HUD_USER|g" \
+        -e "s|/home/pi|$HUD_HOME|g" \
+        "$SERVICE_FILE" | tee /etc/systemd/system/hud.service > /dev/null
+    systemctl daemon-reload
+    systemctl enable hud.service
+    echo "[OK] Installed and enabled hud.service"
+else
+    echo "WARN: $SERVICE_FILE not found — skip service install"
+fi
+
+# ---- 9. Make scripts executable ----
+chmod +x "$PROJECT_DIR/scripts/"*.sh 2>/dev/null || true
+echo "[OK] Scripts marked executable"
+
 echo ""
 echo "=== Done ==="
 echo "Reboot now:  sudo reboot"
 echo ""
-echo "After reboot, X11 + LightDM should render on the 3.5\" SPI display."
-echo "Then start the HUD:  sudo systemctl start hud.service"
-echo "  or manually:  ./scripts/start.sh"
-echo ""
+echo "After reboot the HUD will auto-start on the 3.5\" SPI display."
 echo "To undo (switch back to HDMI):  sudo bash scripts/teardown-spi-display.sh"
