@@ -5,9 +5,11 @@
 #   1. Installs xserver-xorg-video-fbdev (X11 framebuffer driver)
 #   2. Creates /etc/X11/xorg.conf.d/99-spi-tft.conf  — forces X to use fb0
 #   3. Comments out phantom-HDMI lines in /boot/firmware/config.txt
-#   4. Switches LightDM from Wayland (labwc) to X11 (rpd-x)
-#   5. Creates touch calibration for rotated display
-#   6. Installs hud.service for auto-start on boot
+#   4. Creates touch calibration for rotated display
+#   5. Installs hud.service for auto-start on boot
+#
+# LightDM stays on Wayland (labwc) so RPi Connect keeps working.
+# start.sh detects the SPI display at runtime and starts X on fb0 itself.
 #
 # Run on the Pi as:  sudo bash scripts/setup-spi-display.sh
 # Reboot after:      sudo reboot
@@ -27,8 +29,6 @@ HUD_HOME="/home/$HUD_USER"
 CONFIG_TXT="/boot/firmware/config.txt"
 XORG_CONF_DIR="/etc/X11/xorg.conf.d"
 XORG_CONF="$XORG_CONF_DIR/99-spi-tft.conf"
-LIGHTDM_CONF="/etc/lightdm/lightdm.conf"
-
 echo "=== SPI TFT Display Setup ==="
 
 # ---- 1. Verify fb0 exists ----
@@ -105,27 +105,7 @@ else
     echo "WARN: $CONFIG_TXT not found — skip patching"
 fi
 
-# ---- 5. Switch LightDM from Wayland (labwc) to X11 ----
-if [ -f "$LIGHTDM_CONF" ]; then
-    LIGHTDM_BAK="$LIGHTDM_CONF.before-spi.bak"
-    [ ! -f "$LIGHTDM_BAK" ] && cp "$LIGHTDM_CONF" "$LIGHTDM_BAK"
-
-    sed -i \
-        -e 's/^greeter-session=pi-greeter-labwc/greeter-session=pi-greeter/' \
-        -e 's/^user-session=rpd-labwc/user-session=rpd-x/' \
-        -e 's/^autologin-session=rpd-labwc/autologin-session=rpd-x/' \
-        "$LIGHTDM_CONF"
-
-    # Add xserver-command if not already present
-    if ! grep -q "xserver-command=X -keeptty" "$LIGHTDM_CONF" 2>/dev/null; then
-        sed -i '/^\[Seat:\*\]/a xserver-command=X -keeptty' "$LIGHTDM_CONF"
-    fi
-    echo "[OK] Switched LightDM to X11 session (rpd-x)"
-else
-    echo "WARN: $LIGHTDM_CONF not found"
-fi
-
-# ---- 6. Touch calibration (Y-axis inversion for rotate=270) ----
+# ---- 5. Touch calibration (Y-axis inversion for rotate=270) ----
 TOUCH_CONF="$XORG_CONF_DIR/99-touch-calibration.conf"
 cat > "$TOUCH_CONF" << 'TOUCHEOF'
 Section "InputClass"
@@ -136,14 +116,14 @@ EndSection
 TOUCHEOF
 echo "[OK] Created $TOUCH_CONF (Y-axis fix for rotate=270)"
 
-# ---- 7. Grant pi user access to fb0 (udev rule) ----
+# ---- 6. Grant pi user access to fb0 (udev rule) ----
 UDEV_RULE="/etc/udev/rules.d/99-fbdev.rules"
 if [ ! -f "$UDEV_RULE" ]; then
     echo 'SUBSYSTEM=="graphics", KERNEL=="fb0", MODE="0666"' > "$UDEV_RULE"
     echo "[OK] Created $UDEV_RULE (world-readable fb0)"
 fi
 
-# ---- 8. Install hud.service ----
+# ---- 7. Install hud.service ----
 echo "Installing hud.service..."
 SERVICE_FILE="$PROJECT_DIR/systemd/hud.service"
 if [ -f "$SERVICE_FILE" ]; then
@@ -158,7 +138,7 @@ else
     echo "WARN: $SERVICE_FILE not found — skip service install"
 fi
 
-# ---- 9. Make scripts executable ----
+# ---- 8. Make scripts executable ----
 chmod +x "$PROJECT_DIR/scripts/"*.sh 2>/dev/null || true
 echo "[OK] Scripts marked executable"
 

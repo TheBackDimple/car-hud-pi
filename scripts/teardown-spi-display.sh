@@ -1,5 +1,5 @@
 #!/bin/bash
-# Undo setup-spi-display.sh — switch back to HDMI output (Wayland/labwc).
+# Undo setup-spi-display.sh — remove SPI display configs so only HDMI is used.
 #
 # Run on the Pi as:  sudo bash scripts/teardown-spi-display.sh
 # Reboot after:      sudo reboot
@@ -14,8 +14,6 @@ CONFIG_TXT="/boot/firmware/config.txt"
 XORG_CONF="/etc/X11/xorg.conf.d/99-spi-tft.conf"
 TOUCH_CONF="/etc/X11/xorg.conf.d/99-touch-calibration.conf"
 UDEV_RULE="/etc/udev/rules.d/99-fbdev.rules"
-LIGHTDM_CONF="/etc/lightdm/lightdm.conf"
-
 echo "=== SPI TFT Display Teardown ==="
 
 # ---- 1. Remove X11 fbdev + touch configs ----
@@ -43,24 +41,7 @@ else
     fi
 fi
 
-# ---- 3. Restore LightDM config (back to Wayland/labwc) ----
-LIGHTDM_BAK="$LIGHTDM_CONF.before-spi.bak"
-if [ -f "$LIGHTDM_BAK" ]; then
-    cp "$LIGHTDM_BAK" "$LIGHTDM_CONF"
-    echo "[OK] Restored $LIGHTDM_CONF from backup (labwc/Wayland)"
-else
-    if [ -f "$LIGHTDM_CONF" ]; then
-        sed -i \
-            -e 's/^greeter-session=pi-greeter$/greeter-session=pi-greeter-labwc/' \
-            -e 's/^user-session=rpd-x/user-session=rpd-labwc/' \
-            -e 's/^autologin-session=rpd-x/autologin-session=rpd-labwc/' \
-            -e '/^xserver-command=X -keeptty/d' \
-            "$LIGHTDM_CONF"
-        echo "[OK] Switched LightDM back to labwc (Wayland)"
-    fi
-fi
-
-# ---- 4. Remove udev rule ----
+# ---- 3. Remove udev rule ----
 if [ -f "$UDEV_RULE" ]; then
     rm "$UDEV_RULE"
     echo "[OK] Removed $UDEV_RULE"
@@ -69,4 +50,4 @@ fi
 echo ""
 echo "=== Done ==="
 echo "Reboot now:  sudo reboot"
-echo "Display will use HDMI via Wayland (labwc) — ready for the projector."
+echo "SPI config removed. start.sh will auto-detect HDMI on next boot."

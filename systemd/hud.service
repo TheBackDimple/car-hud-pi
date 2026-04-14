@@ -7,7 +7,6 @@ Wants=network.target
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/car-hud-pi
-Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/pi/.Xauthority
 ExecStartPre=/bin/sleep 5
 ExecStart=/home/pi/car-hud-pi/scripts/start.sh
