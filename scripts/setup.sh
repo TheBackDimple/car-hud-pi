@@ -44,6 +44,12 @@ if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/nul
     sudo apt-get install -y chromium-browser 2>/dev/null || sudo apt-get install -y chromium
 fi
 
+# Install unclutter to hide the mouse cursor during HUD display
+if ! command -v unclutter &>/dev/null; then
+    echo "Installing unclutter (hide cursor)..."
+    sudo apt-get install -y unclutter
+fi
+
 # Install Avahi for mDNS (carhud.local) - no need to update IP in app after each boot
 if ! command -v avahi-daemon &>/dev/null; then
     echo "Installing Avahi (mDNS)..."

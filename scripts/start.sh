@@ -66,11 +66,12 @@ else
     fi
 fi
 
-# Disable screen blanking (X11 only — Wayland compositors handle idle separately)
+# Disable screen blanking and hide cursor (X11 only)
 if ! $WAYLAND_MODE; then
     xset s off 2>/dev/null || true
     xset -dpms 2>/dev/null || true
     xset s noblank 2>/dev/null || true
+    unclutter -idle 0 -root &
 fi
 
 # Start FastAPI backend (run from project root so backend package resolves)
