@@ -10,6 +10,37 @@ const WS_URL = import.meta.env.DEV
 
 const MAX_BACKOFF_MS = 10000;
 const INITIAL_BACKOFF_MS = 1000;
+const PLACEHOLDER_HUD_DATA = {
+  speed: '74',
+  gpsSpeed: '73',
+  rpm: '4200',
+  coolantTemp: '194',
+  mpg: '28.9',
+  range: '312',
+  fuelLevel: '76',
+  turn: 'Turn Right on Shinjuku Expy',
+  distance: '0.8 mi',
+  maneuver: 'turn-right',
+  eta: 'ETA 3:45 PM',
+  speedLimit: '45',
+} as const;
+
+function applyHudData(payload: Record<string, unknown>) {
+  useHudStore.setState({
+    speed: (payload.speed as string) ?? '--',
+    gpsSpeed: (payload.gpsSpeed as string) ?? '--',
+    rpm: (payload.rpm as string) ?? '--',
+    coolantTemp: (payload.coolantTemp as string) ?? '--',
+    mpg: (payload.mpg as string) ?? '--',
+    range: (payload.range as string) ?? '--',
+    fuelLevel: (payload.fuelLevel as string) ?? '--',
+    turn: (payload.turn as string) ?? '--',
+    distance: (payload.distance as string) ?? '--',
+    maneuver: (payload.maneuver as string) ?? '',
+    eta: (payload.eta as string) ?? '--',
+    speedLimit: (payload.speedLimit as string) ?? '',
+  });
+}
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
@@ -34,20 +65,7 @@ export function useWebSocket() {
 
           switch (type) {
             case 'hud_data':
-              useHudStore.setState({
-                speed: payload.speed ?? '--',
-                gpsSpeed: payload.gpsSpeed ?? '--',
-                rpm: payload.rpm ?? '--',
-                coolantTemp: payload.coolantTemp ?? '--',
-                mpg: payload.mpg ?? '--',
-                range: payload.range ?? '--',
-                fuelLevel: payload.fuelLevel ?? '--',
-                turn: payload.turn ?? '--',
-                distance: payload.distance ?? '--',
-                maneuver: payload.maneuver ?? '',
-                eta: payload.eta ?? '--',
-                speedLimit: payload.speedLimit ?? '',
-              });
+              applyHudData(payload as Record<string, unknown>);
               break;
             case 'map_frame':
               useHudStore.setState({ mapFrame: payload.image ?? null });
@@ -62,28 +80,25 @@ export function useWebSocket() {
             }
             case 'android_status':
               useHudStore.setState({ phoneConnected: payload.connected ?? false });
+              if (!(payload.connected ?? false)) {
+                applyHudData(PLACEHOLDER_HUD_DATA as unknown as Record<string, unknown>);
+              }
               break;
             case 'layout_config':
+              useHudStore.setState({
+                renderMode:
+                  typeof payload?.renderMode === 'string' &&
+                  payload.renderMode.toLowerCase() === 'legacy'
+                    ? 'legacy'
+                    : 'refined',
+              });
               useHudStore.setState({
                 activePreset: payload as LayoutPreset,
               });
               break;
             case 'full_state':
               if (payload.hud_data) {
-                useHudStore.setState({
-                  speed: payload.hud_data.speed ?? '--',
-                  gpsSpeed: payload.hud_data.gpsSpeed ?? '--',
-                  rpm: payload.hud_data.rpm ?? '--',
-                  coolantTemp: payload.hud_data.coolantTemp ?? '--',
-                  mpg: payload.hud_data.mpg ?? '--',
-                  range: payload.hud_data.range ?? '--',
-                  fuelLevel: payload.hud_data.fuelLevel ?? '--',
-                  turn: payload.hud_data.turn ?? '--',
-                  distance: payload.hud_data.distance ?? '--',
-                  maneuver: payload.hud_data.maneuver ?? '',
-                  eta: payload.hud_data.eta ?? '--',
-                  speedLimit: payload.hud_data.speedLimit ?? '',
-                });
+                applyHudData(payload.hud_data as Record<string, unknown>);
               }
               if (payload.map_frame !== undefined) {
                 useHudStore.setState({
@@ -92,8 +107,18 @@ export function useWebSocket() {
               }
               if (payload.android_connected !== undefined) {
                 useHudStore.setState({ phoneConnected: payload.android_connected });
+                if (!payload.android_connected) {
+                  applyHudData(PLACEHOLDER_HUD_DATA as unknown as Record<string, unknown>);
+                }
               }
               if (payload.layout_config) {
+                useHudStore.setState({
+                  renderMode:
+                    typeof payload.layout_config?.renderMode === 'string' &&
+                    payload.layout_config.renderMode.toLowerCase() === 'legacy'
+                      ? 'legacy'
+                      : 'refined',
+                });
                 useHudStore.setState({ activePreset: payload.layout_config as LayoutPreset });
               }
               break;
@@ -124,6 +149,7 @@ export function useWebSocket() {
           phoneConnected: false,
           hudNotice: null,
         });
+        applyHudData(PLACEHOLDER_HUD_DATA as unknown as Record<string, unknown>);
         wsRef.current = null;
 
         const delay = Math.min(backoffRef.current, MAX_BACKOFF_MS);

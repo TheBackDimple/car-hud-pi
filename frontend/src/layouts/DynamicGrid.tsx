@@ -31,20 +31,21 @@ function visualStyle(c: { type: string; x: number; y: number; width: number; hei
 
 export function DynamicGrid() {
   const preset = useHudStore((s) => s.activePreset);
+  const renderMode = useHudStore((s) => s.renderMode);
 
   if (!preset) {
     return <div className="awaiting-config hud-text">Awaiting Config...</div>;
   }
 
   return (
-    <div className="hud-canvas">
+    <div className={`hud-canvas hud-canvas--${renderMode}`}>
       {preset.components
         .filter((c) => c.enabled)
         .map((c) => normalizeComponent(c))
         .map((c) => (
           <div
             key={c.type}
-            className="hud-widget"
+            className={`hud-widget-slot hud-widget-slot--${c.type}`}
             style={{
               position: 'absolute',
               ...visualStyle(c),

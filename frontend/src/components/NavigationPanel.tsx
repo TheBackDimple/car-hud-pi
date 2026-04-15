@@ -85,12 +85,14 @@ export function NavigationPanel() {
 
   return (
     <div className="hud-widget nav-panel hud-text">
-      {arrow && (
-        <span className="nav-arrow">{arrow}</span>
-      )}
-      <span className="nav-instruction">{cleanTurn || '--'}</span>
-      <span className="nav-distance">{distance || '--'}</span>
-      {eta && eta !== '--' && <span className="nav-eta">{eta}</span>}
+      <div className="nav-panel-layout">
+        {arrow ? <span className="nav-arrow" aria-hidden>{arrow}</span> : null}
+        <div className="nav-panel-copy">
+          <span className="nav-instruction">{cleanTurn || '--'}</span>
+          <span className="nav-distance">{distance || '--'}</span>
+          {eta && eta !== '--' ? <span className="nav-eta">{eta}</span> : null}
+        </div>
+      </div>
     </div>
   );
 }

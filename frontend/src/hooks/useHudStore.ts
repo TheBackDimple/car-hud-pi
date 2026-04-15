@@ -6,11 +6,12 @@ const DEFAULT_PRESET: LayoutPreset = {
   presetId: 0,
   name: 'Default',
   components: [
-    { type: 'speed', enabled: true, x: 0.02, y: 0.05, width: 0.22, height: 0.25 },
+    /* Taller speed slot for digital gauge + ticks; stay left of map (x+w ≤ ~0.25) */
+    { type: 'speed', enabled: true, x: 0.02, y: 0.05, width: 0.22, height: 0.34 },
     { type: 'map', enabled: true, x: 0.28, y: 0.05, width: 0.44, height: 0.6 },
     { type: 'nav', enabled: true, x: 0.75, y: 0.05, width: 0.22, height: 0.25 },
-    { type: 'obd', enabled: true, x: 0.02, y: 0.35, width: 0.22, height: 0.25 },
-    { type: 'fuel', enabled: true, x: 0.02, y: 0.65, width: 0.22, height: 0.25 },
+    { type: 'obd', enabled: true, x: 0.02, y: 0.41, width: 0.22, height: 0.26 },
+    { type: 'fuel', enabled: true, x: 0.75, y: 0.65, width: 0.22, height: 0.28 },
     { type: 'gpsSpeed', enabled: false, x: 0.75, y: 0.35, width: 0.22, height: 0.2 },
   ],
 };
@@ -40,6 +41,8 @@ export interface HudState {
   phoneConnected: boolean;
   /** Short-lived center overlay (e.g. Trip Ended). */
   hudNotice: string | null;
+  /** Visual composition mode. Legacy keeps old look, refined applies Stitch styling. */
+  renderMode: 'legacy' | 'refined';
 }
 
 /** Mock data for testing without backend (dev only). */
@@ -78,4 +81,5 @@ export const useHudStore = create<HudState>(() => ({
   isConnected: false,
   phoneConnected: false,
   hudNotice: null,
+  renderMode: 'refined',
 }));
