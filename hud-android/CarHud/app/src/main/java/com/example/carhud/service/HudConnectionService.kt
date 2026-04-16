@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.carhud.CarHudApplication
@@ -39,6 +40,7 @@ import java.util.regex.Pattern
 class HudConnectionService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
     private var locationProvider: LocationDataProvider? = null
 
     private val bleObd: BleObdProvider
@@ -92,8 +94,10 @@ class HudConnectionService : Service() {
                 piHost = (intent.getStringExtra(EXTRA_PI_HOST) ?: DEFAULT_PI_HOST)
                     .replace("carhud_local", "carhud.local")
                 if (piHost.equals("auto", ignoreCase = true)) {
+                    Log.w(LOG_TAG, "CONNECT: Pi host is auto → PiDiscovery will run")
                     serviceScope.launch { discoverAndConnect() }
                 } else {
+                    Log.w(LOG_TAG, "CONNECT: Pi host is \"$piHost\" → skip PiDiscovery, WebSocket only")
                     connect()
                 }
             }
@@ -109,13 +113,16 @@ class HudConnectionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private suspend fun discoverAndConnect() {
+        Log.w(LOG_TAG, "discoverAndConnect: starting PiDiscovery.discover()")
         updateState(ConnectionState.Connecting)
         val discovered = withContext(Dispatchers.IO) { PiDiscovery.discover(this@HudConnectionService) }
         if (discovered != null) {
+            Log.w(LOG_TAG, "discoverAndConnect: found Pi at $discovered")
             piHost = discovered
             PiHostSettings.setHost(this@HudConnectionService, discovered)
             connect()
         } else {
+            Log.w(LOG_TAG, "discoverAndConnect: PiDiscovery returned null")
             updateState(
                 ConnectionState.Error(
                     "Could not find the Pi over USB tether. Turn tethering on, plug in the Pi, try again — or enter the Pi IP in Settings. " +
@@ -254,6 +261,7 @@ class HudConnectionService : Service() {
     }
 
     companion object {
+        private const val LOG_TAG = "CarHudConn"
         private val IPV4_PATTERN = Pattern.compile("^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$")
         private const val CHANNEL_ID = "hud_connection"
         private const val NOTIFICATION_ID = 1

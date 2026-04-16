@@ -32,7 +32,9 @@ import javax.net.ssl.X509TrustManager
  */
 object PiDiscovery {
 
+    /** Use WARN so OEM logcat filters less likely to hide discovery (INFO can be dropped). */
     private const val TAG = "CarHudPiDiscovery"
+    private const val TAG_GREP = "CarHud"
     private const val HUD_PORT = 8000
     private const val PROBE_TIMEOUT_MS = 1500L
     /** Scan full /24 minus gateway; USB DHCP can assign high last octets (e.g. .140). */
@@ -64,7 +66,7 @@ object PiDiscovery {
     }
 
     private fun line(sb: StringBuilder, msg: String) {
-        Log.i(TAG, msg)
+        Log.w(TAG, msg)
         sb.appendLine(msg)
     }
 
@@ -250,6 +252,7 @@ object PiDiscovery {
     }
 
     suspend fun discover(context: Context): String? = withContext(Dispatchers.IO) {
+        Log.w(TAG_GREP, "PiDiscovery.discover() START — if you see this, auto-discovery is running")
         val report = StringBuilder()
         firstProbeErrorLogged.set(false)
 
