@@ -47,7 +47,10 @@ The app can discover the Pi on the USB tether subnet so you don’t need to ente
 - USB tethering must be on (see section 1).
 - The Pi must be running the HUD server (`hud.service` or `start.sh`).
 - The Pi gets its IP via DHCP from the phone (configured in `usb0.nmconnection`).
-- **Tip:** If you have Wi‑Fi enabled, the app may scan the wrong subnet. Turn off Wi‑Fi or use a manual IP in Settings.
+
+**Important:** The HUD does **not** need internet or home Wi‑Fi. The phone must only reach the Pi on the **USB tether** network. If **Wi‑Fi is still on**, Android may treat the Wi‑Fi network as “active,” so **auto-discovery probes the wrong subnet** (your home router, not the phone). **In the car, turn Wi‑Fi off** on the phone so the active network is USB tethering (or set the Pi’s **manual IP** from `ip addr show usb0` on the Pi).
+
+- **Tip:** If discovery still fails, use a **manual IP** in Settings (see below).
 
 ### Manual IP fallback
 

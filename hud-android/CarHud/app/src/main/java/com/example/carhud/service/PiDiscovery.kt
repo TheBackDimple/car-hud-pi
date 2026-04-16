@@ -24,7 +24,8 @@ object PiDiscovery {
 
     private const val HUD_PORT = 8000
     private const val PROBE_TIMEOUT_MS = 1500L
-    private const val MAX_HOSTS_TO_TRY = 50
+    /** Scan full /24 minus gateway; USB DHCP can assign high last octets (e.g. .140). */
+    private const val MAX_HOSTS_TO_TRY = 253
 
     private val httpClient by lazy {
         val trustAllCerts = object : X509TrustManager {
