@@ -23,7 +23,7 @@ async def _broadcast_hud_data() -> None:
 async def handle_message(websocket: WebSocket, data: dict[str, Any]) -> None:
     """
     Route incoming message based on type.
-    Android: gps_data, hud_data, map_frame, layout_config.
+    Android: gps_data, hud_data, map_frame, layout_config, hud_mirror, theme_config.
     OBD reader: obd_data.
     HUD: request_state.
     """
@@ -89,6 +89,17 @@ async def handle_message(websocket: WebSocket, data: dict[str, Any]) -> None:
                 logger.warning("Invalid layout_config: %s", e)
         elif msg_type == "theme_config":
             await manager.send_to_hud({"type": "theme_config", "payload": payload, "timestamp": timestamp})
+        elif msg_type == "hud_mirror":
+            mirror = payload.get("mirror")
+            if isinstance(mirror, bool):
+                store.set_hud_mirror(mirror)
+                await manager.send_to_hud(
+                    {
+                        "type": "hud_mirror",
+                        "payload": {"mirror": mirror},
+                        "timestamp": timestamp,
+                    }
+                )
         else:
             logger.debug("Unknown message type from Android: %s", msg_type)
         return

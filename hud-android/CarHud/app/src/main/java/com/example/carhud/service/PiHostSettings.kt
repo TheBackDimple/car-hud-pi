@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.map
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 private val PI_HOST_KEY = stringPreferencesKey("pi_host")
 private val VOICE_NAV_ENABLED_KEY = booleanPreferencesKey("voice_navigation_enabled")
+private val HUD_MIRROR_KEY = booleanPreferencesKey("hud_mirror_pi_display")
 
 private const val DEFAULT_PI_HOST = "auto"
 
@@ -47,6 +48,24 @@ object VoiceNavigationSettings {
     suspend fun setEnabled(context: Context, enabled: Boolean) {
         context.settingsDataStore.edit { prefs ->
             prefs[VOICE_NAV_ENABLED_KEY] = enabled
+        }
+    }
+}
+
+/**
+ * Horizontal mirror for the Pi Chromium HUD (windshield reflection vs normal monitor).
+ * Default on matches Pi [start.sh] HUD_MIRROR=1. Sent over WebSocket when connected.
+ */
+object HudMirrorSettings {
+
+    fun isMirrored(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { prefs ->
+            prefs[HUD_MIRROR_KEY] ?: true
+        }
+
+    suspend fun setMirrored(context: Context, mirrored: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[HUD_MIRROR_KEY] = mirrored
         }
     }
 }

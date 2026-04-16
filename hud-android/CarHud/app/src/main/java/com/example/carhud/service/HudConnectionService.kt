@@ -19,8 +19,11 @@ import com.example.carhud.model.HudMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
@@ -151,6 +154,16 @@ class HudConnectionService : Service() {
             override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
                 updateState(ConnectionState.Connected)
                 startGpsStreaming()
+                serviceScope.launch {
+                    val mirrored = HudMirrorSettings.isMirrored(this@HudConnectionService).first()
+                    send(
+                        HudMessage(
+                            type = "hud_mirror",
+                            payload = buildJsonObject { put("mirror", mirrored) },
+                            timestamp = System.currentTimeMillis()
+                        )
+                    )
+                }
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {

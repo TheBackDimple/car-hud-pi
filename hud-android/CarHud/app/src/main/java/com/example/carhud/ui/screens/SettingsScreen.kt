@@ -44,6 +44,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.carhud.model.HudMessage
 import com.example.carhud.service.HudConnectionHolder
+import com.example.carhud.service.HudMirrorSettings
 import com.example.carhud.service.HudThemeSettings
 import com.example.carhud.service.MapStreamSettings
 import com.example.carhud.service.PiDiscovery
@@ -69,6 +70,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
         if (!piHostFocused) piHostDraft = piHostStored
     }
     val voiceNavEnabled by VoiceNavigationSettings.isEnabled(context).collectAsState(initial = false)
+    val hudMirrorOn by HudMirrorSettings.isMirrored(context).collectAsState(initial = true)
 
     Scaffold(
         topBar = {
@@ -146,6 +148,36 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     checked = voiceNavEnabled,
                     onCheckedChange = { on ->
                         scope.launch { VoiceNavigationSettings.setEnabled(context, on) }
+                    }
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(
+                        "Mirror HUD on Pi display",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        "On: for windshield reflection. Off: normal left-to-right on a regular monitor.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                Switch(
+                    checked = hudMirrorOn,
+                    onCheckedChange = { on ->
+                        scope.launch {
+                            HudMirrorSettings.setMirrored(context, on)
+                            HudConnectionHolder.sendHudMirrorPreference(on)
+                        }
                     }
                 )
             }

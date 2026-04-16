@@ -31,6 +31,7 @@ class FullStatePayload(BaseModel):
     map_frame: dict[str, Any] | None = None
     layout_config: dict[str, Any] | None = None
     android_connected: bool = False
+    hud_mirror: bool | None = None
 
 
 # Re-export payload models for handler use

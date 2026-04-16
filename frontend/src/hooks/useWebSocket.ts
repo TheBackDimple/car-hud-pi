@@ -17,6 +17,10 @@ function resolveWsUrl(): string {
 const WS_URL = resolveWsUrl();
 
 const MAX_BACKOFF_MS = 10000;
+
+function applyHudMirror(mirrored: boolean) {
+  document.body.classList.toggle('hud-mirror-on', mirrored);
+}
 const INITIAL_BACKOFF_MS = 1000;
 
 function layoutRenderMode(payload: { renderMode?: unknown }): 'legacy' | 'refined' {
@@ -125,6 +129,9 @@ export function useWebSocket() {
                   activePreset: preset,
                 });
               }
+              if (typeof payload.hud_mirror === 'boolean') {
+                applyHudMirror(payload.hud_mirror);
+              }
               break;
             case 'theme_config':
               if (payload.color) {
@@ -140,6 +147,11 @@ export function useWebSocket() {
                   '--hud-glow',
                   payload.color
                 );
+              }
+              break;
+            case 'hud_mirror':
+              if (typeof payload.mirror === 'boolean') {
+                applyHudMirror(payload.mirror);
               }
               break;
             case 'connection_status':

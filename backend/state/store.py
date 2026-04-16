@@ -33,6 +33,8 @@ class HudStateStore:
         self._hud_data: dict[str, Any] = dict(_DEFAULT_HUD)
         self._map_frame: dict[str, Any] | None = None
         self._layout_config: dict[str, Any] | None = None
+        # None: only URL (?mirror=) applies until Android sends a preference.
+        self._hud_mirror: bool | None = None
 
     def update_hud_data(self, data: dict[str, Any]) -> None:
         """Store full vehicle data (e.g. from Android when no Pi OBD)."""
@@ -68,6 +70,13 @@ class HudStateStore:
         """Store latest layout preset."""
         self._layout_config = data
 
+    def set_hud_mirror(self, mirrored: bool) -> None:
+        """Persisted display mirror preference from Android (forwarded to HUD)."""
+        self._hud_mirror = mirrored
+
+    def get_hud_mirror(self) -> bool | None:
+        return self._hud_mirror
+
     def clear_android_contribution(self) -> None:
         """Clear map frame and GPS/nav fields when Android disconnects from the Pi."""
         self._map_frame = None
@@ -80,6 +89,7 @@ class HudStateStore:
             "hud_data": dict(self._hud_data),
             "map_frame": self._map_frame,
             "layout_config": self._layout_config,
+            "hud_mirror": self._hud_mirror,
         }
 
 

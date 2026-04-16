@@ -5,12 +5,7 @@
  * off the windshield. Text, icons, and map images render mirrored in
  * the DOM but appear correctly on the windshield.
  */
-body {
+/* Toggled by URL (?mirror=true), full_state, or hud_mirror from the Android app */
+body.hud-mirror-on {
   transform: scaleX(-1);
-  overflow: hidden;
-  margin: 0;
-  padding: 0;
-  width: 100vw;
-  height: 100vh;
-  background: #000;
 }

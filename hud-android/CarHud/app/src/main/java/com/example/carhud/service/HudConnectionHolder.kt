@@ -1,6 +1,8 @@
 package com.example.carhud.service
 
 import com.example.carhud.model.HudMessage
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,5 +33,16 @@ object HudConnectionHolder {
 
     fun send(message: HudMessage) {
         service?.send(message)
+    }
+
+    /** Push mirror preference to the Pi HUD (no-op if not connected). */
+    fun sendHudMirrorPreference(mirrored: Boolean) {
+        service?.send(
+            HudMessage(
+                type = "hud_mirror",
+                payload = buildJsonObject { put("mirror", mirrored) },
+                timestamp = System.currentTimeMillis()
+            )
+        )
     }
 }
