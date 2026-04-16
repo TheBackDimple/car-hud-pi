@@ -8,10 +8,12 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.example.carhud.CarHudApplication
 import com.example.carhud.MainActivity
@@ -155,14 +157,18 @@ class HudConnectionService : Service() {
                 updateState(ConnectionState.Connected)
                 startGpsStreaming()
                 serviceScope.launch {
-                    val mirrored = HudMirrorSettings.isMirrored(this@HudConnectionService).first()
-                    send(
-                        HudMessage(
-                            type = "hud_mirror",
-                            payload = buildJsonObject { put("mirror", mirrored) },
-                            timestamp = System.currentTimeMillis()
+                    try {
+                        val mirrored = HudMirrorSettings.isMirrored(this@HudConnectionService).first()
+                        send(
+                            HudMessage(
+                                type = "hud_mirror",
+                                payload = buildJsonObject { put("mirror", mirrored) },
+                                timestamp = System.currentTimeMillis()
+                            )
                         )
-                    )
+                    } catch (e: Exception) {
+                        Log.w(LOG_TAG, "hud_mirror send failed", e)
+                    }
                 }
             }
 
@@ -272,7 +278,13 @@ class HudConnectionService : Service() {
             .setOngoing(true)
             .build()
 
-        startForeground(NOTIFICATION_ID, notification)
+        // API 34+: must pass type matching android:foregroundServiceType in manifest (targetSdk 36).
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            notification,
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        )
     }
 
     companion object {

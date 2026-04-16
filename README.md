@@ -12,9 +12,71 @@ Raspberry Pi side of a car windshield HUD system. A Pi 4 runs a local React-base
 | Android App    | Kotlin + Jetpack Compose     | Controller, data source       |
 | Communication  | WebSocket over USB tether    | Real-time bidirectional messaging |
 
-Data flow is one-directional for most things: the Android phone pushes data **to** the Pi. The Pi receives and renders.
+Data flow is mostly **one-way from phone to display**: the Android app pushes GPS, map frames, layout, and HUD prefs to the Pi; the backend merges them and broadcasts to the Chromium HUD. The HUD can request a full state replay on reconnect.
 
-## Project Structure
+### System overview
+
+```mermaid
+flowchart TB
+    subgraph Phone["Android phone (USB tether)"]
+        App["CarHud app\nCompose UI"]
+        Maps["Maps / Places / Directions APIs"]
+        GPS["GPS + fused location"]
+        BLE["BLE ELM327\n(optional)"]
+    end
+
+    subgraph Pi["Raspberry Pi"]
+        FA["FastAPI\nHTTPS static, /health, /ws"]
+        Store["In-memory state\n(store.py)"]
+        HUD["Chromium kiosk\nReact HUD build"]
+        OBD["OBD reader on Pi\n(optional)"]
+    end
+
+    subgraph Display["Windshield / monitor"]
+        Glass["Reflective HUD"]
+    end
+
+    BLE --> App
+    App --> GPS
+    App --> Maps
+    App <-->|"wss ?role=android"| FA
+    HUD <-->|"wss ?role=hud"| FA
+    OBD -->|"wss ?role=obd"| FA
+    FA <--> Store
+    FA -->|serves built frontend| HUD
+    FA -->|broadcast| HUD
+    HUD --> Glass
+```
+
+### Backend pipeline (merge and broadcast)
+
+```mermaid
+flowchart LR
+    subgraph In["WebSocket inputs"]
+        A["Android\n(role=android)"]
+        Obd["OBD reader\n(role=obd)"]
+    end
+
+    subgraph Core["FastAPI backend"]
+        H["handle_message\n(handlers.py)"]
+        S["HudStateStore\nmerge GPS + OBD"]
+        M["ConnectionManager\nsend_to_hud"]
+    end
+
+    subgraph Out["HUD client"]
+        C["Chromium\n(role=hud)"]
+    end
+
+    A -->|"gps_data, hud_data,\nmap_frame, layout_config,\nmap_clear, theme_config,\nhud_mirror"| H
+    Obd -->|"obd_data"| H
+    H --> S
+    H --> M
+    S -.->|"read merged\nhud_data"| M
+    M -->|"hud_data, map_frame,\nlayout_config, theme_config,\nandroid_status, hud_mirror,\nfull_state (replay)"| C
+    C -->|"request_state"| H
+```
+
+### Project Structure
 
 ```
 car-hud-pi/
@@ -38,6 +100,8 @@ car-hud-pi/
 │   ├── setup.sh        # Full Pi setup
 │   ├── start.sh        # Start backend + Chromium
 │   └── build-frontend.sh
+├── hud-android/        # Kotlin + Jetpack Compose controller app
+│   └── CarHud/
 ├── archive/legacy/     # Old pygame + Flask app (archived)
 └── IMPLEMENTATION_PLAN.md
 ```
@@ -72,7 +136,7 @@ The Android app connects to the Pi over USB tethering. By default it uses **auto
 
 ## Chromium Kiosk & Reflective Display (Phase 3)
 
-The HUD uses a horizontal mirror transform (`scaleX(-1)` in `frontend/src/styles/mirror.css`) so text reads correctly when reflected off the windshield or reflective film. **`scripts/start.sh` opens `https://localhost:8000?mirror=true` by default** (see `HUD_MIRROR` in `start.sh`). The React app only loads `mirror.css` when the URL query `mirror=true` is set (`frontend/src/main.tsx`).
+The HUD uses a horizontal mirror transform (`scaleX(-1)` on `body.hud-mirror-on` in `frontend/src/styles/mirror.css`) so text reads correctly when reflected off the windshield or reflective film. **`scripts/start.sh` opens `https://localhost:8000?mirror=true` by default** (see `HUD_MIRROR` in `start.sh`). The React app sets the initial mirror from that URL query; the Android app can override via WebSocket (`hud_mirror`) while connected.
 
 - **Windshield / reflective material (normal use):** leave the default; Chromium stays mirrored.
 - **Testing on a normal monitor** (text will look backward on the glass if you use mirror there): set `HUD_MIRROR=0` for the service, for example:
