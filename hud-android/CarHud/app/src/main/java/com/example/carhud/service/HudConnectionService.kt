@@ -86,6 +86,8 @@ class HudConnectionService : Service() {
 
     private var webSocket: WebSocket? = null
     private var piHost: String = DEFAULT_PI_HOST
+    @Volatile
+    private var isStopping = false
 
     override fun onCreate() {
         super.onCreate()
@@ -95,7 +97,8 @@ class HudConnectionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_CONNECT -> {
-                startForegroundNotification()
+                isStopping = false
+                startForegroundNotification("Connecting To Raspberry Pi…")
                 piHost = (intent.getStringExtra(EXTRA_PI_HOST) ?: DEFAULT_PI_HOST)
                     .replace("carhud_local", "carhud.local")
                 if (piHost.equals("auto", ignoreCase = true)) {
@@ -109,9 +112,8 @@ class HudConnectionService : Service() {
                 }
             }
             ACTION_DISCONNECT -> {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
                 disconnect()
+                stopForegroundAndSelf()
             }
         }
         return START_STICKY
@@ -122,6 +124,7 @@ class HudConnectionService : Service() {
     private suspend fun discoverAndConnect() {
         Log.w(LOG_TAG, "discoverAndConnect: starting PiDiscovery.discover()")
         updateState(ConnectionState.Connecting)
+        updateForegroundNotification("Discovering Pi…")
         val discovered = withContext(Dispatchers.IO) { PiDiscovery.discover(this@HudConnectionService) }
         if (discovered != null) {
             Log.w(LOG_TAG, "discoverAndConnect: found Pi at $discovered")
@@ -130,11 +133,12 @@ class HudConnectionService : Service() {
             connect()
         } else {
             Log.w(LOG_TAG, "discoverAndConnect: PiDiscovery returned null")
-            updateState(
+            stopForegroundAndSelf(
                 ConnectionState.Error(
-                    "Could not find the Pi over USB tether. Turn tethering on, plug in the Pi, try again — or enter the Pi IP in Settings. " +
-                        "Tip: Settings → Copy last Pi discovery debug log (or adb logcat -s CarHudPiDiscovery)."
-                )
+                    "Could not find the Pi over USB tether. Turn tethering on, plug in the Pi, try again - or enter the Pi IP in Settings. " +
+                        "Tip: Settings -> Copy last Pi discovery debug log (or adb logcat -s CarHudPiDiscovery)."
+                ),
+                "Pi Discovery Failed"
             )
         }
     }
@@ -144,17 +148,23 @@ class HudConnectionService : Service() {
             disconnect()
         }
         if (isInvalidHost(piHost)) {
-            updateState(ConnectionState.Error("Invalid Pi host \"$piHost\". Use \"auto\" or a valid IP (e.g. 192.168.171.140). .255 is broadcast, not a host."))
+            stopForegroundAndSelf(
+                ConnectionState.Error("Invalid Pi host \"$piHost\". Use \"auto\" or a valid IP (e.g. 192.168.171.140). .255 is broadcast, not a host."),
+                "Invalid Pi Host"
+            )
             return
         }
         updateState(ConnectionState.Connecting)
+        updateForegroundNotification("Connecting To Raspberry Pi…")
 
         val url = "wss://$piHost:8000/ws?role=android"
         val request = Request.Builder().url(url).build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
+                if (isStopping) return
                 updateState(ConnectionState.Connected)
+                updateForegroundNotification("Connected - Sending GPS")
                 startGpsStreaming()
                 serviceScope.launch {
                     try {
@@ -182,20 +192,24 @@ class HudConnectionService : Service() {
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                if (isStopping) return
                 stopGpsStreaming()
                 updateState(ConnectionState.Disconnected)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                if (isStopping) return
                 stopGpsStreaming()
                 updateState(ConnectionState.Disconnected)
                 this@HudConnectionService.webSocket = null
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
-                stopGpsStreaming()
-                updateState(ConnectionState.Error(t.message ?: "Connection failed"))
-                this@HudConnectionService.webSocket = null
+                if (isStopping) return
+                stopForegroundAndSelf(
+                    ConnectionState.Error(t.message ?: "Connection failed"),
+                    "Connection Failed"
+                )
                 // No auto-reconnect — user must tap Connect again to avoid endless retry loops.
             }
         })
@@ -233,6 +247,7 @@ class HudConnectionService : Service() {
     }
 
     private fun disconnect() {
+        isStopping = true
         stopGpsStreaming()
         webSocket?.close(1000, "Client disconnect")
         webSocket = null
@@ -249,11 +264,17 @@ class HudConnectionService : Service() {
 
     override fun onDestroy() {
         HudConnectionHolder.unregisterService()
-        disconnect()
+        stopGpsStreaming()
+        webSocket?.cancel()
+        webSocket = null
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        if (HudConnectionHolder.state.value !is ConnectionState.Error) {
+            updateState(ConnectionState.Disconnected)
+        }
         super.onDestroy()
     }
 
-    private fun startForegroundNotification() {
+    private fun ensureNotificationChannel() {
         val channelId = CHANNEL_ID
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -263,20 +284,27 @@ class HudConnectionService : Service() {
             ).apply { setShowBadge(false) }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
+    }
 
+    private fun buildNotification(contentText: String): Notification {
+        ensureNotificationChannel()
         val pendingIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification: Notification = NotificationCompat.Builder(this, channelId)
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Car HUD")
-            .setContentText("Connected To Raspberry Pi")
+            .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
+    }
+
+    private fun startForegroundNotification(contentText: String) {
+        val notification = buildNotification(contentText)
 
         // API 34+: must pass type matching android:foregroundServiceType in manifest (targetSdk 36).
         ServiceCompat.startForeground(
@@ -285,6 +313,26 @@ class HudConnectionService : Service() {
             notification,
             ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
         )
+    }
+
+    private fun updateForegroundNotification(contentText: String) {
+        val notification = buildNotification(contentText)
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun stopForegroundAndSelf(
+        terminalState: ConnectionState? = null,
+        terminalNotificationText: String? = null
+    ) {
+        isStopping = true
+        stopGpsStreaming()
+        webSocket?.cancel()
+        webSocket = null
+        terminalState?.let(::updateState)
+        terminalNotificationText?.let(::updateForegroundNotification)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     companion object {

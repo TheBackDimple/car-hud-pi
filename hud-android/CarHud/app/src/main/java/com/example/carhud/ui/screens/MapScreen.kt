@@ -653,7 +653,7 @@ fun MapScreen(onNavigateBack: () -> Unit) {
         is ConnectionState.Connected -> "Connected"
         is ConnectionState.Connecting -> "Connecting…"
         is ConnectionState.Disconnected -> "Disconnected"
-        is ConnectionState.Error -> "Disconnected"
+        is ConnectionState.Error -> "Error: ${connectionState.message}"
     }
     val connectionChipColor =
         if (connectionState is ConnectionState.Connected) {

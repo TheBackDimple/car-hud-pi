@@ -63,7 +63,7 @@ fun HomeScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        if (results.values.any { it }) {
+        if (results[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             HudConnectionService.startConnect(context, piHost)
         }
     }
@@ -71,7 +71,7 @@ fun HomeScreen(
     val startTripPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        if (results.values.any { it }) {
+        if (results[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             if (connectionState is ConnectionState.Disconnected ||
                 connectionState is ConnectionState.Error
             ) {
@@ -86,7 +86,7 @@ fun HomeScreen(
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ->
                 HudConnectionService.startConnect(context, piHost)
             else -> permissionLauncher.launch(
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
             )
         }
     }
@@ -121,16 +121,11 @@ fun HomeScreen(
                         ContextCompat.checkSelfPermission(
                             context,
                             Manifest.permission.ACCESS_FINE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED ||
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            ) == PackageManager.PERMISSION_GRANTED
+                        ) == PackageManager.PERMISSION_GRANTED
                     if (!hasLocation) {
                         startTripPermissionLauncher.launch(
                             arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
+                                Manifest.permission.ACCESS_FINE_LOCATION
                             )
                         )
                     } else {

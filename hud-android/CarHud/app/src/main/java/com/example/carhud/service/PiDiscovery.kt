@@ -37,8 +37,6 @@ object PiDiscovery {
     private const val TAG_GREP = "CarHud"
     private const val HUD_PORT = 8000
     private const val PROBE_TIMEOUT_MS = 1500L
-    /** Scan full /24 minus gateway; USB DHCP can assign high last octets (e.g. .140). */
-    private const val MAX_HOSTS_TO_TRY = 253
 
     /** Last discovery text (for Settings → copy). Updated every [discover] call. */
     @Volatile
@@ -76,7 +74,7 @@ object PiDiscovery {
         val octets = addr.address
         if (octets.size != 4) return emptyList()
         val base = "${octets[0].toInt() and 0xFF}.${octets[1].toInt() and 0xFF}.${octets[2].toInt() and 0xFF}"
-        return (1..254).take(MAX_HOSTS_TO_TRY).map { "$base.$it" }
+        return (1..254).map { "$base.$it" }
     }
 
     /**
@@ -110,7 +108,6 @@ object PiDiscovery {
         val selfLast = octets[3].toInt() and 0xFF
         return (1..254)
             .filter { it != selfLast }
-            .take(MAX_HOSTS_TO_TRY)
             .map { "$base.$it" }
     }
 
@@ -137,9 +134,8 @@ object PiDiscovery {
         if (octets.size != 4) return emptyList()
         val base = "${octets[0].toInt() and 0xFF}.${octets[1].toInt() and 0xFF}.${octets[2].toInt() and 0xFF}"
         val gatewayLast = octets[3].toInt() and 0xFF
-        return (2..254)
+        return (1..254)
             .filter { it != gatewayLast }
-            .take(MAX_HOSTS_TO_TRY)
             .map { "$base.$it" }
     }
 

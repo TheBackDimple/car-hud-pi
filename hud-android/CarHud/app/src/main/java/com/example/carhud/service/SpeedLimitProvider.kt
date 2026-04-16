@@ -11,6 +11,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 class SpeedLimitProvider {
 
@@ -58,7 +59,7 @@ class SpeedLimitProvider {
             if (elements.length() > 0) {
                 val tags = elements.getJSONObject(0).getJSONObject("tags")
                 val maxspeed = tags.optString("maxspeed", "")
-                maxspeed.replace(Regex("[^0-9]"), "").toIntOrNull()
+                parseMaxspeedToMph(maxspeed)
             } else {
                 null
             }
@@ -73,8 +74,32 @@ class SpeedLimitProvider {
         return r[0]
     }
 
+    /**
+     * OSM maxspeed commonly appears as "50", "50 km/h", "30 mph", or multi-value entries
+     * like "50;60". We take the first parseable segment to keep behavior deterministic.
+     */
+    private fun parseMaxspeedToMph(raw: String): Int? {
+        if (raw.isBlank()) return null
+        val segments = raw.split(';').map { it.trim() }.filter { it.isNotEmpty() }
+        for (segment in segments) {
+            val value = NUMBER_REGEX.find(segment)?.value?.toDoubleOrNull() ?: continue
+            val normalized = segment.lowercase()
+            val isMph = normalized.contains("mph") || normalized.contains("mi/h")
+            val isKmh = normalized.contains("km/h") || normalized.contains("kmh") || normalized.contains("kph")
+            val mph = when {
+                isMph -> value
+                isKmh || normalized.matches(Regex("^\\d+(\\.\\d+)?$")) -> value * KMH_TO_MPH
+                else -> continue
+            }
+            return mph.roundToInt()
+        }
+        return null
+    }
+
     companion object {
         private const val QUERY_INTERVAL_MS = 30_000L
         private const val MOVE_THRESHOLD_METERS = 200f
+        private const val KMH_TO_MPH = 0.621371
+        private val NUMBER_REGEX = Regex("\\d+(?:\\.\\d+)?")
     }
 }
