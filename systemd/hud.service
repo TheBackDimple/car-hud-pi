@@ -8,6 +8,8 @@ Type=simple
 User=pi
 WorkingDirectory=/home/pi/car-hud-pi
 Environment=XAUTHORITY=/home/pi/.Xauthority
+# No HDMI/kiosk: keep FastAPI + WebSocket up without Chromium (see scripts/start.sh).
+# Environment=HUD_SKIP_CHROMIUM=1
 ExecStartPre=/bin/sleep 5
 ExecStart=/home/pi/car-hud-pi/scripts/start.sh
 Restart=always

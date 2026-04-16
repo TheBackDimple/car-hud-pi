@@ -85,6 +85,24 @@ sudo reboot          # Or: sudo systemctl start hud.service
 
 The setup script installs Python deps, builds the frontend, configures USB tether (`dhcpcd`), disables screen blanking, and enables `hud.service`. Edit `/etc/systemd/system/hud.service` if your project path differs from `/home/pi/car-hud-pi`.
 
+**`hud.service` must run `scripts/start.sh` as an executable.** If you cloned from Windows and the service fails with `status=203/EXEC` / Permission denied, run `chmod +x scripts/start.sh` (or `./scripts/setup.sh`, which fixes `scripts/*.sh`).
+
+### Updating the Pi after `git pull`
+
+Chromium loads the **production build** under `frontend/dist`, not the Vite dev server. After pulling new commits, rebuild the frontend and restart the service:
+
+```bash
+cd ~/car-hud-pi   # your clone directory
+git fetch origin
+git checkout frontend-refine
+git pull origin frontend-refine
+chmod +x scripts/*.sh
+./scripts/build-frontend.sh
+sudo systemctl restart hud.service
+```
+
+If `backend/requirements.txt` changed, run `pip install -r backend/requirements.txt` again from the project root (use your venv if you use one).
+
 ## Implementation Status
 
 See `IMPLEMENTATION_PLAN.md` for the full phased implementation plan. Phases 0–9 (through boot integration) are implemented.

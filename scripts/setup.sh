@@ -5,6 +5,8 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# Git on Windows often checks out 0644; systemd ExecStart needs +x on start.sh
+chmod +x "$SCRIPT_DIR"/*.sh 2>/dev/null || true
 HUD_USER="${SUDO_USER:-$USER}"
 [ -z "$HUD_USER" ] && HUD_USER=pi
 HUD_HOME="/home/$HUD_USER"

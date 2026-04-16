@@ -7,10 +7,10 @@ export function OBDPanel() {
   const rpmCompact = rpmNum != null ? `${(rpmNum / 1000).toFixed(1)}k` : '--';
   const barCount = 10;
   const activeBars = Math.round(normalizedRpm * barCount);
-  const minHeight = 14;
+  const minHeight = 26;
   const maxHeight = 100;
   /** Steeper than linear so short bars read clearly vs tall ones. */
-  const heightCurve = 2.35;
+  const heightCurve = 2;
 
   return (
     <div className="hud-widget hud-text obd-panel">

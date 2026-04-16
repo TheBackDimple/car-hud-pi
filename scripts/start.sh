@@ -13,17 +13,21 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+HEADLESS_NO_KIOSK=false
+[ "${HUD_SKIP_CHROMIUM:-}" = "1" ] && HEADLESS_NO_KIOSK=true
+
 # ---- Runtime display detection ------------------------------------------------
 # SPI mode activates only when BOTH the xorg config AND /dev/fb0 exist.
 # If the touchscreen isn't plugged in, fb0 won't be created by the SPI overlay
 # and we fall through to HDMI mode automatically.
 SPI_MODE=false
-SPI_CONF="/etc/X11/xorg.conf.d/99-spi-tft.conf"
-[ -f "$SPI_CONF" ] && [ -e /dev/fb0 ] && SPI_MODE=true
-
 STARTED_X=false
 X_PID=""
 WAYLAND_MODE=false
+
+if ! $HEADLESS_NO_KIOSK; then
+SPI_CONF="/etc/X11/xorg.conf.d/99-spi-tft.conf"
+[ -f "$SPI_CONF" ] && [ -e /dev/fb0 ] && SPI_MODE=true
 
 if $SPI_MODE; then
     # ---- SPI TFT: start bare X server on fb0 if nothing is running ----
@@ -73,6 +77,11 @@ if ! $WAYLAND_MODE; then
     xset s noblank 2>/dev/null || true
     unclutter -idle 0 -root &
 fi
+fi
+
+if $HEADLESS_NO_KIOSK; then
+    echo "Headless: no X11/Wayland/Chromium prep (HUD_SKIP_CHROMIUM=1)"
+fi
 
 # Start FastAPI backend (run from project root so backend package resolves)
 cd "$PROJECT_DIR"
@@ -121,6 +130,16 @@ fi
 
 # Wait for backend to be ready
 sleep 3
+
+# Headless / no HDMI: Chromium cannot open a display and exits immediately, which
+# would run cleanup and kill the backend. Set HUD_SKIP_CHROMIUM=1 (e.g. systemctl edit hud.service → [Service] Environment=HUD_SKIP_CHROMIUM=1).
+if $HEADLESS_NO_KIOSK; then echo "HUD_SKIP_CHROMIUM=1: FastAPI (+ OBD if enabled) only; Chromium skipped."
+    wait $BACKEND_PID
+    BACKEND_EXIT=$?
+    [ -n "$OBD_PID" ] && kill $OBD_PID 2>/dev/null || true
+    $STARTED_X && [ -n "$X_PID" ] && kill $X_PID 2>/dev/null || true
+    exit $BACKEND_EXIT
+fi
 
 # Chromium URL (TLS — see uvicorn --ssl-* above):
 # For windshield reflection (production): add ?mirror=true
