@@ -47,6 +47,7 @@ object PiDiscovery {
 
     /**
      * Returns the default gateway's IPv4 address, or null if not a private network.
+     * Unreliable on USB tether — many devices omit gateway on the default route; prefer [allProbeCandidates].
      */
     private fun getDefaultGateway(context: Context): Inet4Address? {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return null
@@ -66,6 +67,64 @@ object PiDiscovery {
             }
         }
         return null
+    }
+
+    /**
+     * Builds /24 host IPs from the phone's own address on an interface (same subnet as the Pi on USB tether).
+     */
+    private fun candidateIpsFromDeviceOnSubnet(addr: Inet4Address, prefixLen: Int): List<String> {
+        if (prefixLen != 24) return emptyList()
+        val octets = addr.address
+        if (octets.size != 4) return emptyList()
+        val base = "${octets[0].toInt() and 0xFF}.${octets[1].toInt() and 0xFF}.${octets[2].toInt() and 0xFF}"
+        val selfLast = octets[3].toInt() and 0xFF
+        return (1..254)
+            .filter { it != selfLast }
+            .take(MAX_HOSTS_TO_TRY)
+            .map { "$base.$it" }
+    }
+
+    /** USB RNDIS/NCM interfaces often include these substrings in [LinkProperties.getInterfaceName]. */
+    private fun isLikelyUsbTetherInterface(interfaceName: String?): Boolean {
+        if (interfaceName.isNullOrBlank()) return false
+        val n = interfaceName.lowercase()
+        return n.contains("rndis") || n.contains("ncm") || n.contains("usb")
+    }
+
+    /**
+     * Union of candidates from (1) default-route gateway subnet and (2) every private IPv4 /24 on every network.
+     * [getDefaultGateway] alone often fails on USB tether (no private gateway on default route); scanning
+     * [ConnectivityManager.allNetworks] link addresses matches the Pi's subnet (e.g. 10.157.227.x).
+     * USB-like interfaces are probed first when multiple subnets exist (e.g. Wi‑Fi + tether).
+     */
+    private fun allProbeCandidates(context: Context): List<String> {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return emptyList()
+        val preferred = LinkedHashSet<String>()
+        val secondary = LinkedHashSet<String>()
+
+        getDefaultGateway(context)?.let { gw -> candidateIps(gw).forEach { secondary.add(it) } }
+
+        try {
+            for (network in cm.allNetworks) {
+                val lp: LinkProperties = try {
+                    cm.getLinkProperties(network)
+                } catch (_: Exception) {
+                    null
+                } ?: continue
+
+                val bucket = if (isLikelyUsbTetherInterface(lp.interfaceName)) preferred else secondary
+
+                for (la in lp.linkAddresses) {
+                    val a = la.address
+                    if (a !is Inet4Address || !isPrivateAddress(a)) continue
+                    candidateIpsFromDeviceOnSubnet(a, la.prefixLength).forEach { bucket.add(it) }
+                }
+            }
+        } catch (_: Exception) {
+            // ignore
+        }
+
+        return (preferred + secondary).toList()
     }
 
     private fun isPrivateAddress(addr: Inet4Address): Boolean {
@@ -115,8 +174,8 @@ object PiDiscovery {
      * Probes candidates in parallel for speed.
      */
     suspend fun discover(context: Context): String? = withContext(Dispatchers.IO) {
-        val gateway = getDefaultGateway(context) ?: return@withContext null
-        val candidates = candidateIps(gateway)
+        val candidates = allProbeCandidates(context)
+        if (candidates.isEmpty()) return@withContext null
         var foundIp: String? = null
         coroutineScope {
             for (batch in candidates.chunked(10)) {
