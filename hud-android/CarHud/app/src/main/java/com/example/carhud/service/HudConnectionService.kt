@@ -94,9 +94,11 @@ class HudConnectionService : Service() {
                 piHost = (intent.getStringExtra(EXTRA_PI_HOST) ?: DEFAULT_PI_HOST)
                     .replace("carhud_local", "carhud.local")
                 if (piHost.equals("auto", ignoreCase = true)) {
+                    Log.e(LOG_TAG, "CONNECT auto → PiDiscovery (adb: adb logcat -s CarHudConn:E CarHudPiDiscovery:E)")
                     Log.w(LOG_TAG, "CONNECT: Pi host is auto → PiDiscovery will run")
                     serviceScope.launch { discoverAndConnect() }
                 } else {
+                    Log.e(LOG_TAG, "CONNECT manual IP=\"$piHost\" → NO PiDiscovery (set Settings to auto to scan)")
                     Log.w(LOG_TAG, "CONNECT: Pi host is \"$piHost\" → skip PiDiscovery, WebSocket only")
                     connect()
                 }

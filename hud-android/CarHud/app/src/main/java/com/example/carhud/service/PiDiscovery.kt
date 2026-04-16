@@ -252,6 +252,8 @@ object PiDiscovery {
     }
 
     suspend fun discover(context: Context): String? = withContext(Dispatchers.IO) {
+        // ERROR is least likely to be filtered by OEM log buffers; use for adb troubleshooting.
+        Log.e(TAG, "PiDiscovery.discover() START (use: adb logcat -s CarHudPiDiscovery:E CarHudConn:E)")
         Log.w(TAG_GREP, "PiDiscovery.discover() START — if you see this, auto-discovery is running")
         val report = StringBuilder()
         firstProbeErrorLogged.set(false)

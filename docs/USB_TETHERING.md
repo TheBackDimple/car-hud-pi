@@ -54,9 +54,20 @@ The app can discover the Pi on the USB tether subnet so you don’t need to ente
 ### Debugging “auto” discovery
 
 - **In the app:** Settings → **Copy last Pi discovery debug log** (after a Connect attempt with Pi host `auto`). Paste the text into a note or share it.
-- **ADB:** `adb logcat -s CarHudPiDiscovery` while tapping Connect.
 
-The log lists each Android network interface, link addresses, routes, candidate counts, `bindProcessToNetwork` results, and the first HTTPS error (if any).
+- **ADB (don’t use broad `findstr CarHud` — that matches unrelated lines containing `com.example.carhud`):**
+
+  ```bat
+  cd %LOCALAPPDATA%\Android\Sdk\platform-tools
+  adb logcat -c
+  adb logcat -v time *:S CarHudConn:V CarHudPiDiscovery:V CarHud:V
+  ```
+
+  Leave that running, then tap **Connect** with Pi host **`auto`**. You should see **`CarHudConn`** lines; if you used a saved IP instead of `auto`, you’ll see `CONNECT manual IP → NO PiDiscovery`.
+
+- **Repo helper (Windows):** `scripts/android-logcat-carhud.cmd` from a terminal (edit `ADB` path if your SDK is elsewhere).
+
+The discovery log lists each Android network interface, link addresses, routes, candidate counts, `bindProcessToNetwork` results, and the first HTTPS error (if any).
 
 ### Manual IP fallback
 
