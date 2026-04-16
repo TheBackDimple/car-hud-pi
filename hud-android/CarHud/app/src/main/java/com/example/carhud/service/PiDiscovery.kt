@@ -3,6 +3,8 @@ package com.example.carhud.service
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.LinkProperties
+import android.net.Network
+import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -17,8 +19,12 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
 /**
- * Discovers the Pi on the local network (e.g. USB tether subnet) by probing
+ * Discovers the Pi on the USB tether (or other local link) by probing
  * https://IP:8000/health. Used when Pi host is set to "auto".
+ *
+ * Probes must run on the same [Network] as the tether: OkHttp's default client
+ * follows the process default route (often cellular), which cannot reach the Pi's
+ * private IP. We use [ConnectivityManager.bindProcessToNetwork] per network (API 23+).
  */
 object PiDiscovery {
 
@@ -47,7 +53,6 @@ object PiDiscovery {
 
     /**
      * Returns the default gateway's IPv4 address, or null if not a private network.
-     * Unreliable on USB tether — many devices omit gateway on the default route; prefer [allProbeCandidates].
      */
     private fun getDefaultGateway(context: Context): Inet4Address? {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return null
@@ -70,10 +75,12 @@ object PiDiscovery {
     }
 
     /**
-     * Builds /24 host IPs from the phone's own address on an interface (same subnet as the Pi on USB tether).
+     * Builds /24 host IPs from the phone's own address (same subnet as the Pi on USB tether).
+     * OEMs often report a non-24 [prefixLen]; tether is still effectively /24 for discovery.
      */
     private fun candidateIpsFromDeviceOnSubnet(addr: Inet4Address, prefixLen: Int): List<String> {
-        if (prefixLen != 24) return emptyList()
+        if (!isPrivateAddress(addr)) return emptyList()
+        if (prefixLen == 32) return emptyList()
         val octets = addr.address
         if (octets.size != 4) return emptyList()
         val base = "${octets[0].toInt() and 0xFF}.${octets[1].toInt() and 0xFF}.${octets[2].toInt() and 0xFF}"
@@ -91,42 +98,6 @@ object PiDiscovery {
         return n.contains("rndis") || n.contains("ncm") || n.contains("usb")
     }
 
-    /**
-     * Union of candidates from (1) default-route gateway subnet and (2) every private IPv4 /24 on every network.
-     * [getDefaultGateway] alone often fails on USB tether (no private gateway on default route); scanning
-     * [ConnectivityManager.allNetworks] link addresses matches the Pi's subnet (e.g. 10.157.227.x).
-     * USB-like interfaces are probed first when multiple subnets exist (e.g. Wi‑Fi + tether).
-     */
-    private fun allProbeCandidates(context: Context): List<String> {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return emptyList()
-        val preferred = LinkedHashSet<String>()
-        val secondary = LinkedHashSet<String>()
-
-        getDefaultGateway(context)?.let { gw -> candidateIps(gw).forEach { secondary.add(it) } }
-
-        try {
-            for (network in cm.allNetworks) {
-                val lp: LinkProperties = try {
-                    cm.getLinkProperties(network)
-                } catch (_: Exception) {
-                    null
-                } ?: continue
-
-                val bucket = if (isLikelyUsbTetherInterface(lp.interfaceName)) preferred else secondary
-
-                for (la in lp.linkAddresses) {
-                    val a = la.address
-                    if (a !is Inet4Address || !isPrivateAddress(a)) continue
-                    candidateIpsFromDeviceOnSubnet(a, la.prefixLength).forEach { bucket.add(it) }
-                }
-            }
-        } catch (_: Exception) {
-            // ignore
-        }
-
-        return (preferred + secondary).toList()
-    }
-
     private fun isPrivateAddress(addr: Inet4Address): Boolean {
         val octets = addr.address
         if (octets.size != 4) return false
@@ -138,10 +109,6 @@ object PiDiscovery {
         }
     }
 
-    /**
-     * Generates candidate IPs in the same subnet as the gateway.
-     * Excludes the gateway (usually .1) and tries .2, .3, ... first.
-     */
     private fun candidateIps(gateway: Inet4Address): List<String> {
         val octets = gateway.address
         if (octets.size != 4) return emptyList()
@@ -154,8 +121,49 @@ object PiDiscovery {
     }
 
     /**
-     * Probes https://host:8000/health. Returns host if it responds with 200.
+     * USB tether networks first, then others. Each pair is probed only while bound to that [Network].
      */
+    private fun orderedNetworksWithCandidates(cm: ConnectivityManager, context: Context): List<Pair<Network, List<String>>> {
+        val usb = mutableListOf<Pair<Network, List<String>>>()
+        val other = mutableListOf<Pair<Network, List<String>>>()
+        val active = cm.activeNetwork
+
+        try {
+            for (network in cm.allNetworks) {
+                val lp: LinkProperties = try {
+                    cm.getLinkProperties(network)
+                } catch (_: Exception) {
+                    null
+                } ?: continue
+
+                val candidates = LinkedHashSet<String>()
+
+                if (network == active) {
+                    getDefaultGateway(context)?.let { gw -> candidateIps(gw).forEach { candidates.add(it) } }
+                }
+
+                for (la in lp.linkAddresses) {
+                    val a = la.address
+                    if (a !is Inet4Address || !isPrivateAddress(a)) continue
+                    candidateIpsFromDeviceOnSubnet(a, la.prefixLength).forEach { candidates.add(it) }
+                }
+
+                if (candidates.isEmpty()) continue
+
+                val pair = network to candidates.toList()
+                if (isLikelyUsbTetherInterface(lp.interfaceName)) {
+                    usb.add(pair)
+                } else {
+                    other.add(pair)
+                }
+            }
+        } catch (_: Exception) {
+            // ignore
+        }
+
+        return usb + other
+    }
+
     private fun probeHost(host: String): Boolean {
         return try {
             val request = Request.Builder()
@@ -168,24 +176,45 @@ object PiDiscovery {
         }
     }
 
-    /**
-     * Discovers the Pi on the current network's subnet.
-     * Returns the Pi's IP address, or null if not found.
-     * Probes candidates in parallel for speed.
-     */
-    suspend fun discover(context: Context): String? = withContext(Dispatchers.IO) {
-        val candidates = allProbeCandidates(context)
-        if (candidates.isEmpty()) return@withContext null
-        var foundIp: String? = null
-        coroutineScope {
+    private suspend fun probeCandidatesBatches(candidates: List<String>): String? {
+        if (candidates.isEmpty()) return null
+        return coroutineScope {
             for (batch in candidates.chunked(10)) {
                 val results = batch.map { ip ->
                     async { if (probeHost(ip)) ip else null }
                 }.awaitAll()
-                foundIp = results.firstOrNull { it != null }
-                if (foundIp != null) break
+                val found = results.firstOrNull { it != null }
+                if (found != null) return@coroutineScope found
             }
+            null
         }
-        foundIp
+    }
+
+    suspend fun discover(context: Context): String? = withContext(Dispatchers.IO) {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return@withContext null
+        val pairs = orderedNetworksWithCandidates(cm, context)
+        if (pairs.isEmpty()) return@withContext null
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val prior = cm.boundNetworkForProcess
+            try {
+                for ((network, candidates) in pairs) {
+                    if (candidates.isEmpty()) continue
+                    if (!cm.bindProcessToNetwork(network)) continue
+                    try {
+                        val found = probeCandidatesBatches(candidates)
+                        if (found != null) return@withContext found
+                    } finally {
+                        cm.bindProcessToNetwork(null)
+                    }
+                }
+            } finally {
+                cm.bindProcessToNetwork(prior)
+            }
+            null
+        } else {
+            val flat = pairs.flatMap { it.second }.distinct()
+            probeCandidatesBatches(flat)
+        }
     }
 }

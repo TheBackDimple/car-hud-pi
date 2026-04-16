@@ -36,9 +36,10 @@ The app can discover the Pi on the USB tether subnet so you don’t need to ente
 ### How it works
 
 1. Set **Pi host** to `auto` in Settings (this is the default).
-2. When you tap **Connect**, the app probes `https://IP:8000/health` on likely Pi addresses in each **private IPv4 /24** it sees. It builds that list from **all network interfaces** (not only the “default gateway”), because many Android builds **do not report a usable default-route gateway for USB tethering** — that is why older versions only looked at the gateway and often failed with “Pi not found” even when tether worked.
-3. **USB/RNDIS** interfaces are scanned first when both Wi‑Fi and tether are up, so the Pi on the tether subnet is found before unrelated subnets.
-4. The discovered IP is saved for next time.
+2. When you tap **Connect**, the app probes `https://IP:8000/health` on likely Pi addresses in each **private IPv4 /24** it sees. It builds that list from **all network interfaces** (not only the “default gateway”), because many Android builds **do not report a usable default-route gateway for USB tethering**.
+3. Each probe runs with **`bindProcessToNetwork` (API 23+)** so HTTPS uses the **USB tether** route. Without that, the default route is often **cellular**, which cannot reach the Pi’s private IP — so discovery failed even when tethering was on.
+4. **USB/RNDIS** interfaces are scanned first when both Wi‑Fi and tether are up.
+5. The discovered IP is saved for next time.
 
 ### Requirements
 

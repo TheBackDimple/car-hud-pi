@@ -116,7 +116,11 @@ class HudConnectionService : Service() {
             PiHostSettings.setHost(this@HudConnectionService, discovered)
             connect()
         } else {
-            updateState(ConnectionState.Error("Pi not found on network. Enable USB tethering and try again, or set Pi IP in Settings."))
+            updateState(
+                ConnectionState.Error(
+                    "Could not find the Pi over USB tether. Turn tethering on, plug in the Pi, try again — or enter the Pi IP in Settings (from the Pi: ip addr show usb0)."
+                )
+            )
         }
     }
 
