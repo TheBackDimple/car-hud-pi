@@ -72,7 +72,25 @@ The Android app connects to the Pi over USB tethering. By default it uses **auto
 
 ## Chromium Kiosk & Reflective Display (Phase 3)
 
-The HUD uses a horizontal mirror transform (`scaleX(-1)`) so text reads correctly when reflected off the windshield. `scripts/start.sh` launches Chromium in kiosk mode at 1280×720 and disables screen blanking. Verify mirrored text with a mirror or phone camera.
+The HUD uses a horizontal mirror transform (`scaleX(-1)` in `frontend/src/styles/mirror.css`) so text reads correctly when reflected off the windshield or reflective film. **`scripts/start.sh` opens `https://localhost:8000?mirror=true` by default** (see `HUD_MIRROR` in `start.sh`). The React app only loads `mirror.css` when the URL query `mirror=true` is set (`frontend/src/main.tsx`).
+
+- **Windshield / reflective material (normal use):** leave the default; Chromium stays mirrored.
+- **Testing on a normal monitor** (text will look backward on the glass if you use mirror there): set `HUD_MIRROR=0` for the service, for example:
+
+  ```bash
+  sudo systemctl edit hud.service
+  ```
+
+  Add:
+
+  ```ini
+  [Service]
+  Environment=HUD_MIRROR=0
+  ```
+
+  Then `sudo systemctl daemon-reload && sudo systemctl restart hud.service`.
+
+`start.sh` launches Chromium in kiosk mode at 1280×720 (or detected resolution) and disables screen blanking. Verify mirrored text with a mirror or phone camera pointed at the reflective surface.
 
 ## Pi Boot Integration (Phase 9)
 

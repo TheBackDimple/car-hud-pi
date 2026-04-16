@@ -141,11 +141,17 @@ if $HEADLESS_NO_KIOSK; then echo "HUD_SKIP_CHROMIUM=1: FastAPI (+ OBD if enabled
     exit $BACKEND_EXIT
 fi
 
-# Chromium URL (TLS — see uvicorn --ssl-* above):
-# For windshield reflection (production): add ?mirror=true
-#   https://localhost:8000?mirror=true
-# For normal display (demo/testing, default below):
-#   https://localhost:8000
+# Chromium URL (TLS — see uvicorn --ssl-* above).
+# Windshield HUD: mirror horizontally so reflection reads correctly (see frontend main.tsx + mirror.css).
+# Bench testing on a normal monitor: HUD_MIRROR=0 (e.g. systemctl edit hud.service).
+HUD_MIRROR="${HUD_MIRROR:-1}"
+CHROMIUM_URL="https://localhost:8000"
+if [ "$HUD_MIRROR" = "1" ]; then
+  CHROMIUM_URL="https://localhost:8000?mirror=true"
+  echo "Chromium URL: mirrored for reflective display (HUD_MIRROR=1)"
+else
+  echo "Chromium URL: not mirrored (HUD_MIRROR=0)"
+fi
 
 # ---- Detect screen resolution ----
 SCREEN_RES="1280,720"
@@ -186,7 +192,7 @@ $CHROMIUM_CMD \
   --window-size="$SCREEN_RES" \
   --autoplay-policy=no-user-gesture-required \
   $EXTRA_FLAGS \
-  https://localhost:8000
+  "$CHROMIUM_URL"
 
 # Cleanup
 [ -n "$OBD_PID" ] && kill $OBD_PID 2>/dev/null || true

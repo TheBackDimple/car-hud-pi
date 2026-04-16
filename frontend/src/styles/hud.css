@@ -143,7 +143,7 @@
 
 .speed-gauge-arc-tick-num {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: clamp(0.52rem, 5.8cqi, 0.95rem);
+  font-size: clamp(0.62rem, 6.8cqi, 1.12rem);
   font-weight: 600;
   fill: var(--hud-color-dim);
   letter-spacing: 0.02em;
@@ -190,7 +190,7 @@
 
 .speed-gauge .speed-gps {
   font-family: var(--hud-title-font);
-  font-size: clamp(0.62rem, 9cqi, 1rem);
+  font-size: clamp(0.78rem, 10.5cqi, 1.18rem);
   color: var(--hud-color-dim);
   text-align: center;
   margin-top: 0.28rem;
@@ -198,7 +198,7 @@
 
 .speed-gauge .speed-limit {
   font-family: var(--hud-title-font);
-  font-size: clamp(0.62rem, 9cqi, 1rem);
+  font-size: clamp(0.78rem, 10.5cqi, 1.18rem);
   color: var(--hud-color-dim);
   text-align: center;
   margin-top: 0.12rem;
@@ -246,7 +246,7 @@
   flex-direction: column;
   align-items: stretch;
   min-width: 0;
-  gap: 0.12rem;
+  gap: 0.22rem;
 }
 
 .obd-rpm-bar-cell {
@@ -269,15 +269,17 @@
 
 .obd-rpm-scale-num {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: clamp(0.72rem, 1.35vw, 1.05rem);
-  color: rgba(122, 128, 121, 0.72);
+  font-size: clamp(1.05rem, 2.65vw, 1.65rem);
+  font-weight: 700;
+  color: rgba(180, 196, 175, 0.92);
   text-align: right;
   line-height: 1;
-  min-height: 1em;
+  min-height: 1.1em;
+  text-shadow: 0 0 6px color-mix(in srgb, var(--hud-glow) 25%, transparent);
 }
 
 .obd-rpm-scale-hot {
-  color: rgba(255, 102, 102, 0.45);
+  color: rgba(255, 130, 120, 0.88);
 }
 
 .hud-widget .hud-value {
@@ -286,7 +288,7 @@
 }
 
 .hud-widget .hud-label {
-  font-size: clamp(0.88rem, 1.85vw, 1.35rem);
+  font-size: clamp(0.95rem, 2vw, 1.45rem);
   color: var(--hud-color-dim);
   text-transform: uppercase;
   letter-spacing: 0.11em;
@@ -448,7 +450,7 @@
 
 .nav-instruction {
   font-family: var(--hud-title-font);
-  font-size: clamp(1.05rem, 2.15vw, 1.65rem);
+  font-size: clamp(1.12rem, 2.35vw, 1.78rem);
   line-height: 1.35;
   white-space: pre-line;
   word-break: break-word;
@@ -456,14 +458,14 @@
 }
 
 .nav-distance {
-  font-size: clamp(1.02rem, 2vw, 1.45rem);
+  font-size: clamp(1.08rem, 2.15vw, 1.55rem);
   color: var(--hud-color-dim);
   font-weight: 600;
   line-height: 1.2;
 }
 
 .nav-eta {
-  font-size: clamp(0.88rem, 1.55vw, 1.25rem);
+  font-size: clamp(0.95rem, 1.72vw, 1.35rem);
   font-weight: 500;
   line-height: 1.2;
 }
