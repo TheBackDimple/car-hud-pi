@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
 import android.os.Build
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -13,8 +14,12 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.Inet4Address
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
@@ -22,23 +27,23 @@ import javax.net.ssl.X509TrustManager
  * Discovers the Pi on the USB tether (or other local link) by probing
  * https://IP:8000/health. Used when Pi host is set to "auto".
  *
- * Settings only stores a host IP (e.g. 10.157.227.140); "/24" is internal subnet math
- * to know which addresses to try — you never type a prefix in Settings.
- *
- * Probes must run on the same [Network] as the tether: OkHttp's default client
- * follows the process default route (often cellular), which cannot reach the Pi's
- * private IP. We use [ConnectivityManager.bindProcessToNetwork] per network (API 23+).
- *
- * Many OEMs omit or mis-report [LinkProperties.linkAddresses] on USB tether; we also
- * read [LinkProperties.routes] (default gateway + /24 destinations) so candidates are
- * still generated (e.g. full 10.157.227.x).
+ * Debug: logcat tag **CarHudPiDiscovery** (`adb logcat -s CarHudPiDiscovery`).
+ * [lastDiscoveryReport] holds the last run for copy in Settings.
  */
 object PiDiscovery {
 
+    private const val TAG = "CarHudPiDiscovery"
     private const val HUD_PORT = 8000
     private const val PROBE_TIMEOUT_MS = 1500L
     /** Scan full /24 minus gateway; USB DHCP can assign high last octets (e.g. .140). */
     private const val MAX_HOSTS_TO_TRY = 253
+
+    /** Last discovery text (for Settings → copy). Updated every [discover] call. */
+    @Volatile
+    var lastDiscoveryReport: String = ""
+        private set
+
+    private val firstProbeErrorLogged = AtomicBoolean(false)
 
     private val httpClient by lazy {
         val trustAllCerts = object : X509TrustManager {
@@ -56,6 +61,11 @@ object PiDiscovery {
             .sslSocketFactory(sslContext.socketFactory, trustAllCerts)
             .hostnameVerifier { _, _ -> true }
             .build()
+    }
+
+    private fun line(sb: StringBuilder, msg: String) {
+        Log.i(TAG, msg)
+        sb.appendLine(msg)
     }
 
     /** All host IPs in a /24 given the network address (e.g. 10.157.227.0) or any address in that /24. */
@@ -134,20 +144,38 @@ object PiDiscovery {
     /**
      * USB tether networks first, then others. Each pair is probed only while bound to that [Network].
      */
-    private fun orderedNetworksWithCandidates(cm: ConnectivityManager): List<Pair<Network, List<String>>> {
+    private fun orderedNetworksWithCandidates(cm: ConnectivityManager, report: StringBuilder): List<Pair<Network, List<String>>> {
         val usb = mutableListOf<Pair<Network, List<String>>>()
         val other = mutableListOf<Pair<Network, List<String>>>()
+        val nets = try {
+            cm.allNetworks.toList()
+        } catch (e: Exception) {
+            line(report, "allNetworks failed: ${e.message}")
+            emptyList()
+        }
+
+        line(report, "allNetworks count=${nets.size}")
 
         try {
-            for (network in cm.allNetworks) {
+            for (network in nets) {
                 val lp: LinkProperties = try {
                     cm.getLinkProperties(network)
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    line(report, "getLinkProperties failed for $network: ${e.message}")
                     null
                 } ?: continue
 
-                val candidates = LinkedHashSet<String>()
+                val iface = lp.interfaceName ?: "?"
+                val linksStr = lp.linkAddresses.joinToString("; ") { la ->
+                    "${la.address?.hostAddress}/${la.prefixLength}"
+                }.ifEmpty { "(none)" }
+                val routesStr = lp.routes.joinToString("; ") { r ->
+                    val d = r.destination?.toString() ?: "?"
+                    val g = r.gateway?.hostAddress ?: "no-gw"
+                    "$d -> $g"
+                }.ifEmpty { "(none)" }
 
+                val candidates = LinkedHashSet<String>()
                 addCandidatesFromRoutes(lp, candidates)
 
                 for (la in lp.linkAddresses) {
@@ -156,20 +184,34 @@ object PiDiscovery {
                     candidateIpsFromDeviceOnSubnet(a, la.prefixLength).forEach { candidates.add(it) }
                 }
 
-                if (candidates.isEmpty()) continue
+                val usbHint = isLikelyUsbTetherInterface(lp.interfaceName)
+                line(
+                    report,
+                    "iface=$iface usbLike=$usbHint candidates=${candidates.size} | links=$linksStr | routes=$routesStr"
+                )
+
+                if (candidates.isEmpty()) {
+                    line(report, "  -> skip (no private /24 candidates from routes+links)")
+                    continue
+                }
+
+                val sample = candidates.take(5).joinToString(", ") + if (candidates.size > 5) ", …" else ""
+                line(report, "  sample probes: $sample")
 
                 val pair = network to candidates.toList()
-                if (isLikelyUsbTetherInterface(lp.interfaceName)) {
+                if (usbHint) {
                     usb.add(pair)
                 } else {
                     other.add(pair)
                 }
             }
-        } catch (_: Exception) {
-            // ignore
+        } catch (e: Exception) {
+            line(report, "orderedNetworksWithCandidates exception: ${e.stackTraceToString()}")
         }
 
-        return usb + other
+        val merged = usb + other
+        line(report, "probe order: ${usb.size} usb-like group(s), ${other.size} other(s), total networks with candidates=${merged.size}")
+        return merged
     }
 
     private fun probeHost(host: String): Boolean {
@@ -179,50 +221,100 @@ object PiDiscovery {
                 .build()
             val response = httpClient.newCall(request).execute()
             response.isSuccessful
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (firstProbeErrorLogged.compareAndSet(false, true)) {
+                Log.w(TAG, "First https health probe failed (example host=$host)", e)
+            }
             false
         }
     }
 
-    private suspend fun probeCandidatesBatches(candidates: List<String>): String? {
+    private suspend fun probeCandidatesBatches(candidates: List<String>, report: StringBuilder): String? {
         if (candidates.isEmpty()) return null
+        var batches = 0
         return coroutineScope {
             for (batch in candidates.chunked(10)) {
+                batches++
                 val results = batch.map { ip ->
                     async { if (probeHost(ip)) ip else null }
                 }.awaitAll()
                 val found = results.firstOrNull { it != null }
-                if (found != null) return@coroutineScope found
+                if (found != null) {
+                    line(report, "probe hit on batch $batches: $found")
+                    return@coroutineScope found
+                }
             }
+            line(report, "probed $batches batch(es), no /health 200")
             null
         }
     }
 
     suspend fun discover(context: Context): String? = withContext(Dispatchers.IO) {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return@withContext null
-        val pairs = orderedNetworksWithCandidates(cm)
-        if (pairs.isEmpty()) return@withContext null
+        val report = StringBuilder()
+        firstProbeErrorLogged.set(false)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val prior = cm.boundNetworkForProcess
+        line(report, "=== Pi discovery ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} ===")
+        line(report, "sdk=${Build.VERSION.SDK_INT} model=${Build.MODEL}")
+
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        if (cm == null) {
+            line(report, "ConnectivityManager null")
+            lastDiscoveryReport = report.toString()
+            return@withContext null
+        }
+
+        val priorBound = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            cm.boundNetworkForProcess
+        } else {
+            null
+        }
+        line(report, "boundNetworkForProcess(before)=${priorBound?.toString() ?: "null"}")
+
+        val pairs = try {
+            orderedNetworksWithCandidates(cm, report)
+        } catch (e: Exception) {
+            line(report, "orderedNetworksWithCandidates: ${e.stackTraceToString()}")
+            emptyList()
+        }
+
+        if (pairs.isEmpty()) {
+            line(report, "RESULT: no networks with candidates (empty list)")
+            lastDiscoveryReport = report.toString()
+            return@withContext null
+        }
+
+        val result: String? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            var found: String? = null
             try {
                 for ((network, candidates) in pairs) {
                     if (candidates.isEmpty()) continue
-                    if (!cm.bindProcessToNetwork(network)) continue
+                    line(report, "--- binding to $network (${candidates.size} candidates) ---")
+                    val ok = cm.bindProcessToNetwork(network)
+                    line(report, "bindProcessToNetwork -> $ok")
+                    if (!ok) continue
                     try {
-                        val found = probeCandidatesBatches(candidates)
-                        if (found != null) return@withContext found
+                        found = probeCandidatesBatches(candidates, report)
+                        if (found != null) break
                     } finally {
                         cm.bindProcessToNetwork(null)
+                        line(report, "bindProcessToNetwork(null) after probe")
                     }
                 }
             } finally {
-                cm.bindProcessToNetwork(prior)
+                cm.bindProcessToNetwork(priorBound)
+                line(report, "restored boundNetworkForProcess -> $priorBound")
             }
-            null
+            line(report, "RESULT: ${found ?: "not found"}")
+            found
         } else {
             val flat = pairs.flatMap { it.second }.distinct()
-            probeCandidatesBatches(flat)
+            line(report, "API<23 flat candidates=${flat.size}")
+            val f = probeCandidatesBatches(flat, report)
+            line(report, "RESULT: ${f ?: "not found"}")
+            f
         }
+
+        lastDiscoveryReport = report.toString()
+        result
     }
 }

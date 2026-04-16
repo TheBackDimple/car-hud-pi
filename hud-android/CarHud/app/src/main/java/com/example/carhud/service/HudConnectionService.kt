@@ -118,7 +118,8 @@ class HudConnectionService : Service() {
         } else {
             updateState(
                 ConnectionState.Error(
-                    "Could not find the Pi over USB tether. Turn tethering on, plug in the Pi, try again — or enter the Pi IP in Settings (from the Pi: ip addr show usb0)."
+                    "Could not find the Pi over USB tether. Turn tethering on, plug in the Pi, try again — or enter the Pi IP in Settings. " +
+                        "Tip: Settings → Copy last Pi discovery debug log (or adb logcat -s CarHudPiDiscovery)."
                 )
             )
         }

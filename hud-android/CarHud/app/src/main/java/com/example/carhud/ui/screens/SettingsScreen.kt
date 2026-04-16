@@ -14,9 +14,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -41,6 +46,7 @@ import com.example.carhud.model.HudMessage
 import com.example.carhud.service.HudConnectionHolder
 import com.example.carhud.service.HudThemeSettings
 import com.example.carhud.service.MapStreamSettings
+import com.example.carhud.service.PiDiscovery
 import com.example.carhud.service.PiHostSettings
 import com.example.carhud.service.VoiceNavigationSettings
 import kotlinx.serialization.json.buildJsonObject
@@ -98,6 +104,23 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     .onFocusChanged { piHostFocused = it.isFocused },
                 singleLine = true,
                 placeholder = { Text("auto or 192.168.171.140") }
+            )
+            TextButton(
+                onClick = {
+                    val clip = PiDiscovery.lastDiscoveryReport.ifBlank { "(Run Connect with Pi host \"auto\" once, then copy again.)" }
+                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("Pi discovery debug", clip))
+                    Toast.makeText(context, "Copied Pi discovery debug log", Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                Text("Copy last Pi discovery debug log")
+            }
+            Text(
+                "After a failed \"auto\" connect, tap above and paste into a note or chat. Logcat: adb logcat -s CarHudPiDiscovery",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
             )
 
             Row(

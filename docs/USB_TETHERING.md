@@ -51,6 +51,13 @@ The app can discover the Pi on the USB tether subnet so you don’t need to ente
 
 - **Tip:** If discovery still fails, use a **manual IP** in Settings (see below).
 
+### Debugging “auto” discovery
+
+- **In the app:** Settings → **Copy last Pi discovery debug log** (after a Connect attempt with Pi host `auto`). Paste the text into a note or share it.
+- **ADB:** `adb logcat -s CarHudPiDiscovery` while tapping Connect.
+
+The log lists each Android network interface, link addresses, routes, candidate counts, `bindProcessToNetwork` results, and the first HTTPS error (if any).
+
 ### Manual IP fallback
 
 If discovery fails (e.g. wrong network, firewall), you can set the Pi IP manually in Settings. On the Pi, run:
