@@ -20,3 +20,7 @@ class LayoutConfigPayload(BaseModel):
     presetId: int = 1
     name: str = ""
     components: list[HudComponent] = Field(default_factory=list)
+    renderMode: str | None = Field(
+        default=None,
+        description='Optional: "legacy" for classic HUD styling, else refined.',
+    )

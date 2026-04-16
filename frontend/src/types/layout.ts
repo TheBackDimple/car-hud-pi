@@ -13,4 +13,6 @@ export interface LayoutPreset {
   presetId: number;
   name: string;
   components: HudComponent[];
+  /** When `"legacy"`, use classic styling; otherwise refined HUD look. */
+  renderMode?: string;
 }

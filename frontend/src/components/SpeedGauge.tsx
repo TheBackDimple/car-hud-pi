@@ -35,9 +35,18 @@ const MPH_MINOR_TICKS: number[] = Array.from(
 
 export function SpeedGauge() {
   const speed = useHudStore((s) => s.speed);
+  const gpsSpeed = useHudStore((s) => s.gpsSpeed);
+  const speedLimit = useHudStore((s) => s.speedLimit);
   const { speed: speedNum } = useNumericTelemetry();
   const arcMeasureRef = useRef<SVGPathElement>(null);
   const [arcLen, setArcLen] = useState(0);
+
+  const limitNum = parseInt(speedLimit, 10);
+  const overLimit =
+    Boolean(speedLimit) &&
+    speedNum != null &&
+    !Number.isNaN(limitNum) &&
+    speedNum > limitNum;
 
   const fillPct =
     speedNum != null
@@ -53,7 +62,9 @@ export function SpeedGauge() {
   const filledLen = arcLen > 0 ? (fillPct / 100) * arcLen : 0;
 
   return (
-    <div className="hud-widget speed-gauge hud-text">
+    <div
+      className={`hud-widget speed-gauge hud-text${overLimit ? ' speed-over-limit' : ''}`}
+    >
       <div
         className="speed-gauge-digital"
         role="meter"
@@ -165,6 +176,12 @@ export function SpeedGauge() {
           </div>
         </div>
       </div>
+      {gpsSpeed && gpsSpeed !== '--' && gpsSpeed !== speed && (
+        <span className="speed-gps">GPS: {gpsSpeed}</span>
+      )}
+      {speedLimit && speedLimit !== '' && (
+        <span className="speed-limit">LIMIT {speedLimit}</span>
+      )}
     </div>
   );
 }

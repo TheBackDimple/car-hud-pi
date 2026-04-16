@@ -188,6 +188,32 @@
   letter-spacing: 0.2em;
 }
 
+.speed-gauge .speed-gps {
+  font-family: var(--hud-title-font);
+  font-size: clamp(0.48rem, 7cqi, 0.78rem);
+  color: var(--hud-color-dim);
+  text-align: center;
+  margin-top: 0.28rem;
+}
+
+.speed-gauge .speed-limit {
+  font-family: var(--hud-title-font);
+  font-size: clamp(0.48rem, 7cqi, 0.78rem);
+  color: var(--hud-color-dim);
+  text-align: center;
+  margin-top: 0.12rem;
+  padding: 0.12rem 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--hud-border) 70%, transparent);
+  border-radius: 0.35rem;
+}
+
+.speed-over-limit .speed-value {
+  color: #ff6666;
+  text-shadow:
+    0 0 12px color-mix(in srgb, #ff6666 75%, transparent),
+    0 0 20px color-mix(in srgb, #ff4444 45%, transparent);
+}
+
 .obd-panel {
   gap: 0.45rem;
 }

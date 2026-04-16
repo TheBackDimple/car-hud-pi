@@ -1,17 +1,16 @@
 import { create } from 'zustand';
 import type { LayoutPreset } from '../types/layout';
 
-/** Default layout when no preset received — all components visible for testing. */
+/** Default layout when no preset yet — matches Pi/Android grid until first layout_config. */
 const DEFAULT_PRESET: LayoutPreset = {
   presetId: 0,
   name: 'Default',
   components: [
-    /* Taller speed slot for digital gauge + ticks; stay left of map (x+w ≤ ~0.25) */
-    { type: 'speed', enabled: true, x: 0.02, y: 0.05, width: 0.22, height: 0.34 },
+    { type: 'speed', enabled: true, x: 0.02, y: 0.05, width: 0.22, height: 0.25 },
     { type: 'map', enabled: true, x: 0.28, y: 0.05, width: 0.44, height: 0.6 },
     { type: 'nav', enabled: true, x: 0.75, y: 0.05, width: 0.22, height: 0.25 },
-    { type: 'obd', enabled: true, x: 0.02, y: 0.41, width: 0.22, height: 0.26 },
-    { type: 'fuel', enabled: true, x: 0.75, y: 0.65, width: 0.22, height: 0.28 },
+    { type: 'obd', enabled: true, x: 0.02, y: 0.35, width: 0.22, height: 0.25 },
+    { type: 'fuel', enabled: true, x: 0.02, y: 0.65, width: 0.22, height: 0.25 },
     { type: 'gpsSpeed', enabled: false, x: 0.75, y: 0.35, width: 0.22, height: 0.2 },
   ],
 };

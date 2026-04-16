@@ -2,44 +2,28 @@ import { useEffect, useRef } from 'react';
 import { useHudStore } from './useHudStore';
 import type { LayoutPreset } from '../types/layout';
 
-const WS_URL = import.meta.env.DEV
-  ? 'ws://localhost:8000/ws?role=hud'
-  : window.location.protocol === 'https:'
-    ? `wss://${window.location.host}/ws?role=hud`
-    : `ws://${window.location.host}/ws?role=hud`;
+function resolveWsUrl(): string {
+  const override = import.meta.env.VITE_WS_URL as string | undefined;
+  if (override?.trim()) {
+    return override.trim();
+  }
+  return import.meta.env.DEV
+    ? 'ws://localhost:8000/ws?role=hud'
+    : window.location.protocol === 'https:'
+      ? `wss://${window.location.host}/ws?role=hud`
+      : `ws://${window.location.host}/ws?role=hud`;
+}
+
+const WS_URL = resolveWsUrl();
 
 const MAX_BACKOFF_MS = 10000;
 const INITIAL_BACKOFF_MS = 1000;
-const PLACEHOLDER_HUD_DATA = {
-  speed: '74',
-  gpsSpeed: '73',
-  rpm: '4200',
-  coolantTemp: '194',
-  mpg: '28.9',
-  range: '312',
-  fuelLevel: '76',
-  turn: 'Turn Right on Shinjuku Expy',
-  distance: '0.8 mi',
-  maneuver: 'turn-right',
-  eta: 'ETA 3:45 PM',
-  speedLimit: '45',
-} as const;
 
-function applyHudData(payload: Record<string, unknown>) {
-  useHudStore.setState({
-    speed: (payload.speed as string) ?? '--',
-    gpsSpeed: (payload.gpsSpeed as string) ?? '--',
-    rpm: (payload.rpm as string) ?? '--',
-    coolantTemp: (payload.coolantTemp as string) ?? '--',
-    mpg: (payload.mpg as string) ?? '--',
-    range: (payload.range as string) ?? '--',
-    fuelLevel: (payload.fuelLevel as string) ?? '--',
-    turn: (payload.turn as string) ?? '--',
-    distance: (payload.distance as string) ?? '--',
-    maneuver: (payload.maneuver as string) ?? '',
-    eta: (payload.eta as string) ?? '--',
-    speedLimit: (payload.speedLimit as string) ?? '',
-  });
+function layoutRenderMode(payload: { renderMode?: unknown }): 'legacy' | 'refined' {
+  return typeof payload.renderMode === 'string' &&
+    payload.renderMode.toLowerCase() === 'legacy'
+    ? 'legacy'
+    : 'refined';
 }
 
 export function useWebSocket() {
@@ -54,8 +38,13 @@ export function useWebSocket() {
       ws.onopen = () => {
         backoffRef.current = INITIAL_BACKOFF_MS;
         useHudStore.setState({ isConnected: true });
-        // Request last known state on connect (handles reconnection)
-        ws.send(JSON.stringify({ type: 'request_state', payload: {}, timestamp: null }));
+        ws.send(
+          JSON.stringify({
+            type: 'request_state',
+            payload: {},
+            timestamp: null,
+          })
+        );
       };
 
       ws.onmessage = (event) => {
@@ -65,7 +54,20 @@ export function useWebSocket() {
 
           switch (type) {
             case 'hud_data':
-              applyHudData(payload as Record<string, unknown>);
+              useHudStore.setState({
+                speed: payload.speed ?? '--',
+                gpsSpeed: payload.gpsSpeed ?? '--',
+                rpm: payload.rpm ?? '--',
+                coolantTemp: payload.coolantTemp ?? '--',
+                mpg: payload.mpg ?? '--',
+                range: payload.range ?? '--',
+                fuelLevel: payload.fuelLevel ?? '--',
+                turn: payload.turn ?? '--',
+                distance: payload.distance ?? '--',
+                maneuver: payload.maneuver ?? '',
+                eta: payload.eta ?? '--',
+                speedLimit: payload.speedLimit ?? '',
+              });
               break;
             case 'map_frame':
               useHudStore.setState({ mapFrame: payload.image ?? null });
@@ -80,25 +82,31 @@ export function useWebSocket() {
             }
             case 'android_status':
               useHudStore.setState({ phoneConnected: payload.connected ?? false });
-              if (!(payload.connected ?? false)) {
-                applyHudData(PLACEHOLDER_HUD_DATA as unknown as Record<string, unknown>);
-              }
               break;
-            case 'layout_config':
+            case 'layout_config': {
+              const preset = payload as LayoutPreset;
               useHudStore.setState({
-                renderMode:
-                  typeof payload?.renderMode === 'string' &&
-                  payload.renderMode.toLowerCase() === 'legacy'
-                    ? 'legacy'
-                    : 'refined',
-              });
-              useHudStore.setState({
-                activePreset: payload as LayoutPreset,
+                renderMode: layoutRenderMode(preset),
+                activePreset: preset,
               });
               break;
+            }
             case 'full_state':
               if (payload.hud_data) {
-                applyHudData(payload.hud_data as Record<string, unknown>);
+                useHudStore.setState({
+                  speed: payload.hud_data.speed ?? '--',
+                  gpsSpeed: payload.hud_data.gpsSpeed ?? '--',
+                  rpm: payload.hud_data.rpm ?? '--',
+                  coolantTemp: payload.hud_data.coolantTemp ?? '--',
+                  mpg: payload.hud_data.mpg ?? '--',
+                  range: payload.hud_data.range ?? '--',
+                  fuelLevel: payload.hud_data.fuelLevel ?? '--',
+                  turn: payload.hud_data.turn ?? '--',
+                  distance: payload.hud_data.distance ?? '--',
+                  maneuver: payload.hud_data.maneuver ?? '',
+                  eta: payload.hud_data.eta ?? '--',
+                  speedLimit: payload.hud_data.speedLimit ?? '',
+                });
               }
               if (payload.map_frame !== undefined) {
                 useHudStore.setState({
@@ -106,33 +114,35 @@ export function useWebSocket() {
                 });
               }
               if (payload.android_connected !== undefined) {
-                useHudStore.setState({ phoneConnected: payload.android_connected });
-                if (!payload.android_connected) {
-                  applyHudData(PLACEHOLDER_HUD_DATA as unknown as Record<string, unknown>);
-                }
+                useHudStore.setState({
+                  phoneConnected: payload.android_connected,
+                });
               }
               if (payload.layout_config) {
+                const preset = payload.layout_config as LayoutPreset;
                 useHudStore.setState({
-                  renderMode:
-                    typeof payload.layout_config?.renderMode === 'string' &&
-                    payload.layout_config.renderMode.toLowerCase() === 'legacy'
-                      ? 'legacy'
-                      : 'refined',
+                  renderMode: layoutRenderMode(preset),
+                  activePreset: preset,
                 });
-                useHudStore.setState({ activePreset: payload.layout_config as LayoutPreset });
               }
               break;
             case 'theme_config':
               if (payload.color) {
-                document.documentElement.style.setProperty('--hud-color', payload.color);
-                // Dimmer version for secondary text
-                document.documentElement.style.setProperty('--hud-color-dim', payload.color + 'aa');
-                // Glow color
-                document.documentElement.style.setProperty('--hud-glow', payload.color);
+                document.documentElement.style.setProperty(
+                  '--hud-color',
+                  payload.color
+                );
+                document.documentElement.style.setProperty(
+                  '--hud-color-dim',
+                  payload.color + 'aa'
+                );
+                document.documentElement.style.setProperty(
+                  '--hud-glow',
+                  payload.color
+                );
               }
               break;
             case 'connection_status':
-              // Heartbeat — no state change needed
               break;
             default:
               break;
@@ -149,7 +159,6 @@ export function useWebSocket() {
           phoneConnected: false,
           hudNotice: null,
         });
-        applyHudData(PLACEHOLDER_HUD_DATA as unknown as Record<string, unknown>);
         wsRef.current = null;
 
         const delay = Math.min(backoffRef.current, MAX_BACKOFF_MS);
